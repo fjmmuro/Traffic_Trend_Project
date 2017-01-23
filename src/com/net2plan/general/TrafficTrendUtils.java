@@ -29,23 +29,24 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 public class TrafficTrendUtils 
 {
 	
-	private int C = 7;
-	private int S = 3;
-	private int A = 10;
+	private int C = 5;
+	private int S = 5;
+	private int A = 5;
+	private int U = 100;
 	
-	private Random rand = new Random();
 	
-	private List<Triple<Double, Double,Double>> services = new ArrayList<Triple<Double,Double,Double>>();
-	List<List<Integer>> replicaPlacements = new ArrayList<List<Integer>>();
-	
-	private double[] x_s = {0.6,0.1,0.3}; 		// Hay que cambiarlo por los valores "reales del cisco vni" no se si normalizarlo a 1 o ponerlo como proporcion del total de trafico
-	private double[] cagr = {0.31,0,0.18};  		// Cagr for each service regarging cisco vni
-	private double[] beta = {0.1,1.5,1};			// Deberian valores menores
+	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Hay que cambiarlo por los valores "reales del cisco vni" no se si normalizarlo a 1 o ponerlo como proporcion del total de trafico
+	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarging cisco vni
+	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Deberian valores menores
+	private double[] N_u = new double[U];
 	
 	double[] lastInitialTraffic = new double[C];
+	private Random rand = new Random();
 	
 	DoubleMatrix2D xas = DoubleFactory2D.dense.make(A,S);
 	List<List<Integer>> cdnIndexes = new ArrayList<List<Integer>>();
+	List<List<List<Integer>>> replicaPlacements = new ArrayList<List<List<Integer>>>();
+	private List<Triple<Double, Double,Double>> services = new ArrayList<Triple<Double,Double,Double>>();
 	
 	public TrafficTrendUtils ()
 	{		
@@ -182,8 +183,8 @@ public class TrafficTrendUtils
 	{		
 		for(int c = 0; c < C; c++)
 		{
-			int numNodes = RandomUtils.random(2, 4);	
-			//int numNodes = 14;	
+			//int numNodes = RandomUtils.random(2, 4);	
+			int numNodes = 3;	
 			List<Integer> indexesThisCDN = new ArrayList<Integer>();
 			for (int n = 0; n < numNodes; n++)
 			{				 
@@ -208,9 +209,9 @@ public class TrafficTrendUtils
 	
 	
 	// Function to generate the applications randomly (x_as,service,cdns)
-	public List<Quadruple<Double,Integer,int[],double[]>> getApps(int U, String solver, String solverName)
+	public List<Quadruple<Double,Integer,Integer,double[]>> getApps(int U, String solver, String solverName)
 	{
-		List<Quadruple<Double, Integer, int[], double[]>> apps = new ArrayList<Quadruple<Double,Integer,int[],double[]>>();
+		List<Quadruple<Double, Integer, Integer, double[]>> apps = new ArrayList<Quadruple<Double,Integer,Integer,double[]>>();
 		List<Integer> shuffleCDNs = new ArrayList<Integer>();
 		for(int c = 0; c < C; c++)
 			shuffleCDNs.add(c);
@@ -218,7 +219,7 @@ public class TrafficTrendUtils
 		Pair<List<Integer>,int[]> services = generateServicePerApp();
 		List<Integer> indexAppInService = services.getFirst();
 		int[] numAppPerService = services.getSecond();
-		double[] x_a = generateAppTrafficPerService(numAppPerService,indexAppInService);		
+//		double[] x_a = generateAppTrafficPerService(numAppPerService,indexAppInService);		
 		
 		for(int a = 0; a < A; a++)
 		{
@@ -230,13 +231,11 @@ public class TrafficTrendUtils
 			for (int c = 0; c < numCDNs; c++)
 				appCDNs[c] = shuffleCDNs.get(c);
 
-			apps.add(Quadruple.of(x_a[a], indexAppInService.get(a), appCDNs,N_u));
+			apps.add(Quadruple.of(x_s[a], a, a,N_u));
 		}		
 		
 		return apps;
-	}
-
-	
+	}	
 	
 	public double[] generateAppTrafficPerService(int[] numApp, List<Integer> indexAppInService)
 	{
@@ -304,7 +303,7 @@ public class TrafficTrendUtils
 			
 		int N = netPlan.getNumberOfNodes();
 		
-		if(N_dc >= 1 && currentIndexes.size() < N)
+		if(N_dc >= 1 && currentIndexes.size()+N_dc <= N)
 		{
 			for (int n1 = 0; n1 < N_dc; n1++)
 			{
@@ -335,11 +334,13 @@ public class TrafficTrendUtils
 					while (currentIndexes.contains(newCandidate))
 						newCandidate = RandomUtils.random(0, N-1);					
 					bestIndex = newCandidate;					
+				}	
+				if(bestIndex != -1)
+				{
+					currentIndexes.add(bestIndex);	
+					updateReplicaPlacements(c,bestIndex);
+					numberOfNewDCs++;
 				}
-				
-				currentIndexes.add(bestIndex);	
-				numberOfNewDCs++;
-				
 			}
 			this.lastInitialTraffic[c] = currentCDNTraffic;
 		}
@@ -350,40 +351,53 @@ public class TrafficTrendUtils
 	public double[] computeNumberOfAccesses(int U)
 	{		
 		double[] x_u = new double[U];
-		double[] N_u = new double[U];
 		double total = 0;
 		
 		for(int i=0; i < U; i++)
 		{
-			x_u[i] = (double) i/(U+1);
+			x_u[i] = (double) U/(i+1);
 			total += x_u[i];
 		}
-		
 		for (int i = 0; i < U; i++)
-			N_u[i] = x_u[i]/total;		
+			N_u[i] = x_u[i]/total;	
 		
-		return N_u;
+		return this.N_u;
 	}
 	
-	public List<List<Integer>> computeInitialReplicaPlacements (List<Integer> cdnIndexesNodes)
+	public List<List<List<Integer>>> computeInitialReplicaPlacements (List<List<Integer>> cdnIndexesNodes)
 	{
-		
-		int cdnSize = cdnIndexesNodes.size();
-		
-		for(int i = 0; i< 100; i++)
+		for(List<Integer> cdn : cdnIndexesNodes)
 		{
-			int numReplicas = RandomUtils.random(1, cdnSize);
-			List<Integer> cdnCopy = cdnIndexesNodes;
-			List<Integer> indexesContentUnit = new ArrayList<Integer>();
-			Collections.shuffle(cdnCopy);
-			for(int index = 0; index < numReplicas; index++)
-				indexesContentUnit.add(cdnCopy.get(index));
-			this.replicaPlacements.add(indexesContentUnit);
-		}		
-		
+			List<List<Integer>> replicaPlacesThisCDN = new ArrayList<List<Integer>>();
+			int cdnSize = cdn.size();
+			
+			for(int i = 0; i < U; i++)			
+			{
+				int numReplicas = RandomUtils.random(2, cdnSize);
+				List<Integer> cdnCopy = cdn;
+				Collections.shuffle(cdnCopy);
+				List<Integer> indexesContentUnit = new ArrayList<Integer>();
+				for(int index = 0; index < numReplicas; index++)
+					indexesContentUnit.add(cdnCopy.get(index));
+				replicaPlacesThisCDN.add(indexesContentUnit);
+			}		
+			this.replicaPlacements.add(replicaPlacesThisCDN);			
+		}
+			
 		return this.replicaPlacements;
 	}
 	
+	public void updateReplicaPlacements(int c, int bestIndex)
+	{
+		for (int i = 0; i < U; i++)
+			if (rand.nextDouble() < 200*this.N_u[i])
+				this.replicaPlacements.get(c).get(i).add(bestIndex);			
+	}
+	
+	public List<List<List<Integer>>> checkReplicaPlacements()
+	{
+		return this.replicaPlacements;
+	}
 	
 }
 		
