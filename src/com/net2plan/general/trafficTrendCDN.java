@@ -2,13 +2,11 @@ package com.net2plan.general;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-
 
 import com.net2plan.interfaces.networkDesign.Demand;
 import com.net2plan.interfaces.networkDesign.IAlgorithm;
@@ -19,7 +17,6 @@ import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.interfaces.networkDesign.Route;
 import com.net2plan.utils.InputParameter;
-import com.net2plan.utils.Quadruple;
 import com.net2plan.utils.TimeTrace;
 import com.net2plan.utils.Triple;
 import com.net2plan.utils.Constants.RoutingType;
@@ -43,13 +40,15 @@ public class trafficTrendCDN implements IAlgorithm
 	private InputParameter G = new InputParameter ("G", (double) 1 , "Expansion Factor per CDN");
 	private InputParameter sim = new InputParameter ("sim", (int) 1, "simulation index");
 	private InputParameter isLocal = new InputParameter("isLocal", (boolean) false, "false if the execution is run in a server, true otherwise"); 
-	
+	private InputParameter A = new InputParameter("A", (int) 5, "Number of Apps");
+	private InputParameter S = new InputParameter("S", (int) 5, "Number of Services");
+	private InputParameter C = new InputParameter("C", (int) 5, "Number of CDNs");
+	private InputParameter U = new InputParameter("U", (int) 100, "Number of Content Units");
 
 	private TimeTrace stat_avRTT = new TimeTrace();
 	private TimeTrace stat_carriedNotCDNTraffic = new TimeTrace();
 	private TimeTrace stat_carriedD2CTrafficPerService = new TimeTrace();
 	private TimeTrace stat_offeredD2CTrafficPerService = new TimeTrace();
-//	private TimeTrace stat_carriedD2DTrafficPerService = new TimeTrace();
 	private TimeTrace stat_numberOfNewDC = new TimeTrace();
 	private TimeTrace stat_multiCastTraffic = new TimeTrace();
 	private TimeTrace stat_carried = new TimeTrace();
@@ -63,9 +62,8 @@ public class trafficTrendCDN implements IAlgorithm
 	 */
 	@Override
 	public String executeAlgorithm(NetPlan originalnetPlan, Map<String, String> algorithmParameters, Map<String, String> net2planParameters)
-	{
-		double iniTime = System.nanoTime();
-		
+	{		
+//		long iniTime = System.nanoTime();
 		originalnetPlan.removeAllDemands();
 		
 		/* Initialize all InputParameter objects defined in this object (this uses Java reflection) */
@@ -75,9 +73,10 @@ public class trafficTrendCDN implements IAlgorithm
 		NetPlan netPlan = originalnetPlan.copy();
 		// Initial checks
 		final int N = netPlan.getNumberOfNodes();
-		final int S = 5;									// Number of different services
-		final int C = 5;
-		final int U = 100;
+		final int S = this.S.getInt();
+		final int C = this.C.getInt();
+		final int A = this.A.getInt();
+		final int U = this.U.getInt();
 		final int simYears = this.simYears.getInt();	
 		final double H_D2C = 0.76*1000;
 		final double H_TelcoTelco = 1000-H_D2C;
@@ -86,28 +85,21 @@ public class trafficTrendCDN implements IAlgorithm
 		int[] populationVector = new int[N];
 		double[] popuWeightVector = new double[N];
 		int totalPopulation = 0;
-		int[] levelVector = new int[N];			
-			
+		int[] levelVector = new int[N];						
 	
 		double CAGR_telcoTelco = 0.1;
 		double telecoTelcoTraffic = H_TelcoTelco;
 		double Nmas, replicaTraffic;
-//		double x_s;
 		double beta_s;
 		double appTraffic;    					// Total traffic of the application app
 		double h_ac;	
 		double cagr_service;
 
-//		double telco_telco_rtt;
-
 		int originNodeReplicaIndex;		
 		int numberOfCDNs;													// Number of different CDN available in this app
-		int appService;														// Type of service of the app
-		
+		int appService;														// Type of service of the app		
 		
 		List<Link> seqLinks = new ArrayList<Link>();
-		
-//		List<Integer> cdnIndexesCopy = new ArrayList<Integer>();
 		Set<Link> multLinks = new HashSet<Link>();
 		
 		MulticastDemand multicastDemand;
@@ -116,16 +108,15 @@ public class trafficTrendCDN implements IAlgorithm
 		netPlan.setRoutingType(RoutingType.SOURCE_ROUTING);	
 		
 		// Read services, applications and available CDNs
-		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils();		
+		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U);		
 //		appAndCDNInfo.setNodePopulation(netPlan);	
 		appAndCDNInfo.generateServicePerApp();
 		
 		String path = null;
-		String solver = "cplex";
 		if (!isLocal.getBoolean())
 			path = "../libcplex1261.so";
 		
-		List<Quadruple<Double, Integer, Integer,double[]>> appInfo = appAndCDNInfo.getApps(100,solver,path);
+		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
 		List<List<Integer>> cdnIndexesNodes = appAndCDNInfo.getCDNs(N);
 		List<Triple<Double,Double,Double>> servicesInfo = appAndCDNInfo.getServices();				
 		
@@ -143,8 +134,7 @@ public class trafficTrendCDN implements IAlgorithm
 		}
 				
 		for (int n = 0; n< N; n++)		
-			popuWeightVector[n] = (double)populationVector[n]/(double)totalPopulation;	
-		
+			popuWeightVector[n] = (double)populationVector[n]/(double)totalPopulation;			
 		
 		final DoubleMatrix1D linkCost = DoubleFactory1D.dense.make(netPlan.getNumberOfLinks(),1);
 		DoubleMatrix2D traffMatrixTelcoTelco = DoubleFactory2D.dense.make(N,N);	
@@ -157,22 +147,24 @@ public class trafficTrendCDN implements IAlgorithm
 		DoubleMatrix2D traffMatrix = DoubleFactory2D.dense.make(N,N,0);		
 		List<DoubleMatrix2D> traffMatrixPerCDN = new ArrayList<DoubleMatrix2D>();
 		
-		List<List<List<Integer>>> replicaPlacements = appAndCDNInfo.computeInitialReplicaPlacements(cdnIndexesNodes);
+		double[] numberOfAccesses = appAndCDNInfo.computeNumberOfAccesses(U);
+		List<List<List<List<Integer>>>> replicaPlacements = appAndCDNInfo.computeInitialReplicaPlacements(cdnIndexesNodes);			
 		
 		for (int y = 0; y < simYears; y++)
 		{
+			
 //			double timenow = (System.nanoTime()-iniTime)*1e-9; 
-//			System.out.println("Year :" + y + " in " + timenow);
+//			System.out.println("Year "+y+ " in " + timenow + " seconds.");
 			double[] carriedTrafficD2CPerService = new double[S];
 			double[] carriedTrafficD2DPerService = new double[S];
 			double[] offeredTrafficD2CPerService = new double[S];
 			int[] numberOfCarriedDemandsPerService = new int[S];
 			double[] propagationTime = new double[S];
-			double[] rttPerService = new double[S];		
-			
+			double[] rttPerService = new double[S];				
+
 			netPlan = originalnetPlan.copy();
 			List<Node> netNodes  = netPlan.getNodes();
-			List<Link> netLinks = netPlan.getLinks();
+			List<Link> netLinks = netPlan.getLinks();			
 			
 			// Telco-Telco Traffic Matrix
 			telecoTelcoTraffic = H_TelcoTelco*Math.pow((1+CAGR_telcoTelco), y);
@@ -184,8 +176,7 @@ public class trafficTrendCDN implements IAlgorithm
 				seqLinks = GraphUtils.getShortestPath(netNodes,netLinks, d.getIngressNode(), d.getEgressNode(), null);
 				netPlan.addRoute(d, d.getOfferedTraffic(), d.getOfferedTraffic(), seqLinks, null);
 			}
-			
-//			stat_avNotDCRTT.add(y, telco_telco_rtt);
+
 			stat_carriedNotCDNTraffic.add(y,netPlan.getDemandTotalCarriedTraffic());
 			
 			// Compute traffic per application
@@ -193,88 +184,93 @@ public class trafficTrendCDN implements IAlgorithm
 			for (int c = 0; c < C; c++)
 				traffMatrixPerCDN.add(c, DoubleFactory2D.sparse.make(N,N));
 			
-			netPlan.removeAllDemands();
-			for (Quadruple<Double,Integer, Integer,double[]> app : appInfo)
-			{		
-				
+//			netPlan.removeAllDemands();
+			netPlan = originalnetPlan.copy();
+			netNodes  = netPlan.getNodes();
+			netLinks = netPlan.getLinks();
+			
+			int appIndex = 0;
+			for (Triple<Double,Integer, int[]> app : appInfo)
+			{						
 				appService = app.getSecond();														// Type of service of the app
 				cagr_service = servicesInfo.get(appService).getSecond();
-//				x_s = servicesInfo.get(appService).getFirst();
 				beta_s = servicesInfo.get(appService).getThird();
 				appTraffic = H_D2C*app.getFirst()*Math.pow((1+cagr_service),y);
-				Integer appCDNs = app.getThird();												      		// List of CDNs where the app can carry the traffic				
-				numberOfCDNs = 1;														// Number of different CDN available in this app
+				int[] appCDNs = app.getThird();												      	// List of CDNs where the app can carry the traffic				
+				numberOfCDNs = appCDNs.length;																	// Number of different CDN available in this app
 				h_ac = appTraffic/(double) numberOfCDNs;											// Traffic per each CDN for the app					
-				double[] numberOfAccesses = app.getFourth();
+				
 //				List<Integer> cdnIndexNodes = cdnIndexesNodes.get(appService);
 				Set<Node> destinationNodes = new HashSet<Node>();
 				DoubleMatrix2D traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);			
 				
-				for (int i=0; i < U; i++)					
+				for (int c=0; c < numberOfCDNs; c ++)
 				{
-					// D2C Traffic Matrices
-
-//					Nc = uPlacementIndexes.size();
-					List<Integer> uPlacementIndexes = replicaPlacements.get(appService).get(i);
-					traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);
-					
-					for(int n1 = 0; n1 < N; n1++)				
-						for(int n2 = 0; n2 < N; n2++)						
-							if(n1 != n2)
-								if(uPlacementIndexes.contains(n1))								
-									traffMatrixAppCDN.set(n1, n2, popuWeightVector[n1]*popuWeightVector[n2]);		
-								
-					
-					traffMatrix = TrafficMatrixGenerationModels.normalizationPattern_totalTraffic(traffMatrixAppCDN, h_ac*numberOfAccesses[i]);		
-					traffMatrixPerCDN.get(appService).assign(traffMatrix,DoubleFunctions.plus);
-					
-					for (Demand d : netPlan.addDemandsFromTrafficMatrix(traffMatrix))
-					{								
-						offeredTrafficD2CPerService[appService] += d.getOfferedTraffic();
-						numberOfCarriedDemandsPerService[appService] ++;
-						if (rand.nextDouble() <= 0.8) 	
-						{						
-							if (!uPlacementIndexes.contains(d.getEgressNode().getIndex()) )						
+					for (int i=0; i < U; i++)					
+					{
+						// D2C Traffic Matrices
+	
+	//					Nc = uPlacementIndexes.size();
+						List<Integer> uPlacementIndexes = replicaPlacements.get(appIndex).get(c).get(i);
+						traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);
+						
+						for(int n1 = 0; n1 < N; n1++)				
+							for(int n2 = 0; n2 < N; n2++)						
+								if(n1 != n2)
+									if(uPlacementIndexes.contains(n1))								
+										traffMatrixAppCDN.set(n1, n2, popuWeightVector[n1]*popuWeightVector[n2]);										
+						
+						traffMatrix = TrafficMatrixGenerationModels.normalizationPattern_totalTraffic(traffMatrixAppCDN, h_ac*numberOfAccesses[i]);		
+						traffMatrixPerCDN.get(appCDNs[c]).assign(traffMatrix,DoubleFunctions.plus);
+						
+						for (Demand d : netPlan.addDemandsFromTrafficMatrix(traffMatrix))
+						{								
+							offeredTrafficD2CPerService[appService] += d.getOfferedTraffic();
+							numberOfCarriedDemandsPerService[appService] ++;
+							if (rand.nextDouble() <= 0.8) 	
+							{						
+								if (!uPlacementIndexes.contains(d.getEgressNode().getIndex()) )						
+								{
+									seqLinks = GraphUtils.getShortestPath(netNodes, netLinks, d.getIngressNode(), d.getEgressNode(), null);
+									Route r = netPlan.addRoute(d, d.getOfferedTraffic(), d.getOfferedTraffic(), seqLinks, null);
+									carriedTrafficD2CPerService[appService] += d.getOfferedTraffic();
+									propagationTime[appService] += r.getPropagationDelayInMiliseconds();
+								}							
+							}
+							else
 							{
-								seqLinks = GraphUtils.getShortestPath(netNodes, netLinks, d.getIngressNode(), d.getEgressNode(), null);
+								seqLinks  = GraphUtils.getShortestPath(netNodes, netLinks, d.getIngressNode(), d.getEgressNode(), null);
 								Route r = netPlan.addRoute(d, d.getOfferedTraffic(), d.getOfferedTraffic(), seqLinks, null);
 								carriedTrafficD2CPerService[appService] += d.getOfferedTraffic();
 								propagationTime[appService] += r.getPropagationDelayInMiliseconds();
-							}							
+							}				
 						}
-						else
+					
+						// D2D Traffic Matrices (InterCDN Traffic)		
+					
+						Nmas = numberOfAccesses[i];
+						int Nr = uPlacementIndexes.size();
+						replicaTraffic = beta_s*h_ac*Nmas;	
+	
+						destinationNodes.clear();
+						originNodeReplicaIndex = uPlacementIndexes.get(0);
+						Node originNode = netPlan.getNode(originNodeReplicaIndex);
+						
+						for(int r = 1; r < Nr; r ++)
+							if (uPlacementIndexes.get(r) != originNodeReplicaIndex)
+								destinationNodes.add(netPlan.getNode(uPlacementIndexes.get(r)));	
+						
+						if(!destinationNodes.isEmpty())
 						{
-							seqLinks  = GraphUtils.getShortestPath(netNodes, netLinks, d.getIngressNode(), d.getEgressNode(), null);
-							Route r = netPlan.addRoute(d, d.getOfferedTraffic(), d.getOfferedTraffic(), seqLinks, null);
-							carriedTrafficD2CPerService[appService] += d.getOfferedTraffic();
-							propagationTime[appService] += r.getPropagationDelayInMiliseconds();
-						}				
-					}
-				
-					// D2D Traffic Matrices (InterCDN Traffic)		
-				
-					Nmas = numberOfAccesses[i];
-//					int maxNumberOfReplicas = (int) (2 + Math.floor((Nc-2)*(1-1/Nmas)));
-					int Nr = uPlacementIndexes.size();
-					replicaTraffic = beta_s*h_ac*Nmas;	
-
-					destinationNodes.clear();
-					originNodeReplicaIndex = uPlacementIndexes.get(0);
-					Node originNode = netPlan.getNode(originNodeReplicaIndex);
-					
-					for(int r = 1; r < Nr; r ++)
-						if (uPlacementIndexes.get(r) != originNodeReplicaIndex)
-							destinationNodes.add(netPlan.getNode(uPlacementIndexes.get(r)));	
-					
-					if(!destinationNodes.isEmpty())
-					{
-						multicastDemand = netPlan.addMulticastDemand(originNode, destinationNodes, replicaTraffic, null);						
-						multLinks = GraphUtils.getMinimumCostMulticastTree(netLinks, netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
-								linkCost, originNode, destinationNodes, -1, -1, -1, -1, "cplex", path , 10);						
-						multicastTree = netPlan.addMulticastTree(multicastDemand, replicaTraffic, replicaTraffic, multLinks, null);
-						carriedTrafficD2DPerService[appService] += multicastTree.getCarriedTraffic();
-					}
-				}						
+							multicastDemand = netPlan.addMulticastDemand(originNode, destinationNodes, replicaTraffic, null);						
+							multLinks = GraphUtils.getMinimumCostMulticastTree(netLinks, netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
+									linkCost, originNode, destinationNodes, -1, -1, -1, -1, "cplex", path , 10);						
+							multicastTree = netPlan.addMulticastTree(multicastDemand, replicaTraffic, replicaTraffic, multLinks, null);
+							carriedTrafficD2DPerService[appService] += multicastTree.getCarriedTraffic();
+						}
+					}		
+				}
+				appIndex++;
 			}
 					
 			for(int s=0; s<S; s++)			
@@ -289,16 +285,17 @@ public class trafficTrendCDN implements IAlgorithm
 			int newDC = 0;	
 			// Update Data Center Locations
 			if(G.getDouble() > 0)	
-				for(int c = 0; c < C; c++)				
-					newDC += appAndCDNInfo.addDcIntoCDN(netPlan, c, G.getDouble(),traffMatrixPerCDN.get(c));
+				for (int a = 0; a < A; a++)
+					for(int c = 0; c < appInfo.get(a).getThird().length; c++)
+					{
+						int[] thisCDN = appInfo.get(a).getThird();
+						newDC += appAndCDNInfo.addDcIntoCDN(netPlan, a, thisCDN[c], G.getDouble(),traffMatrixPerCDN.get(thisCDN[c]));
+					}
 			
 			stat_numberOfNewDC.add(y+1,newDC);
-			replicaPlacements = appAndCDNInfo.checkReplicaPlacements();
-			
+			replicaPlacements = appAndCDNInfo.checkReplicaPlacements();			
 		}
-			
-	//	String root = "C:/Users/Javi/OneDrive/Projects/Proyecto Trend CDN/Results/";
-		
+					
 		String root;
 		if (isLocal.getBoolean()) root = "C:/Users/Javi/OneDrive/Projects/Proyecto Trend CDN/Results/";
 		else root = "../trendTraffic/Results/";
