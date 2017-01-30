@@ -1,11 +1,34 @@
 package com.net2plan.general;
 
+/* 
+ * Hypothesis:
+// * 1) average number of replicas of CU is proportional to its popularity. avNumberReplicasInCDN (u) = beta * zipf(u)
+// * avNumberReplicasInCDN = sum (u) beta * zipf(u) = beta
+ * 2) probability of a DC of having a replica of CU is proportional to its popularity: probHavingReplicaofCUInsideDC = alpha * zipf(u) 
+ * 
+ * avNumberReplicasInCDN (u) = numDCssOfCDN * probHavingReplicaofCUInsideDC (u) =>
+ * => sum(u) avNumberReplicasInCDN = numDCsOfCDN sum (u) probHavingReplicaofCUInsideDC (u)
+ * => beta * sum(u) zipf(u) = numDCsOfCDN alpha sum (u) zipf (u)
+ * => beta =  numDCsOfCDN * alpha
+ * 
+ * Normalize so that AvNumberOfReplicasOfContentUnitInADC = XXX
+ * 
+ * avNumberReplicasInCDN = 100 * XXX => beta = 100 * XXX => alpha = 100 * XXX /  numDCsOfCDN
+ * 
+ * */
+
+
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
+import com.google.common.collect.Sets;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.utils.RandomUtils;
@@ -14,7 +37,9 @@ import com.net2plan.utils.Triple;
 import cern.colt.matrix.tdouble.DoubleFactory2D;
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
-public class TrafficTrendUtils {
+public class TrafficTrendUtils 
+{
+	public static double [] zipfDitribution = null;
 	
 	private int C,S,A,U;
 	
@@ -22,48 +47,46 @@ public class TrafficTrendUtils {
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarging cisco vni
 	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Deberian valores menores
 	
-	double[] lastInitialTraffic;
+	double[] trafficInPreivousYearWhenADCWasCreated;
 	private double[] N_u;
-	private Random rand = new Random();
+	private Random rand;
 	
 	DoubleMatrix2D xas = DoubleFactory2D.dense.make(A,S);
-	List<List<Integer>> cdnIndexes = new ArrayList<List<Integer>>();
-	List<List<List<List<Integer>>>> replicaPlacements = new ArrayList<List<List<List<Integer>>>>();
-	private List<Triple<Double, Double,Double>> services = new ArrayList<Triple<Double,Double,Double>>();
-	private List<Triple<Double, Integer, int[]>> apps = new ArrayList<Triple<Double, Integer, int[]>>();
+	List<List<Node>> cdnNodes_c = new ArrayList<>();
+	List<List<List<Set<Node>>>> replicaPlacements_acu = new ArrayList<>(); // for each app, CDN and content unit, the places where it is available
+	private List<Triple<Double, Double,Double>> services = new ArrayList<>();
+	private List<Triple<Double, Integer, int[]>> apps = new ArrayList<>();
 	
-	public TrafficTrendUtils (int C,int S,int A,int U)
+	public TrafficTrendUtils (int C,int S,int A,int U,Random rand)
 	{		
+		this.rand = rand;
 		this.C = C;
 		this.S = S;
 		this.A = A;
 		this.U = U;
 		
-		this.lastInitialTraffic = new double[C];
+		this.trafficInPreivousYearWhenADCWasCreated = new double[C];
 		this.N_u = new double[U];
 		
 		for(int c = 0; c < C; c++)
-			lastInitialTraffic[c] = 0;
+			trafficInPreivousYearWhenADCWasCreated[c] = 0;
+		
+		TrafficTrendUtils.updateZipfDistributionValues(U);
 	}
 	
 	// Function to generate the CDN randomly (list<indexes>)
-	public List<List<Integer>> getCDNs(int N)
+	public static List<Set<Node>> getInitialDCPlacementPerCDN(NetPlan np , final int C , final Random rand)
 	{		
+		final List<Set<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
 			//int numNodes = RandomUtils.random(2, 4);	
-			int numNodes = 3;	
-			List<Integer> indexesThisCDN = new ArrayList<Integer>();
-			for (int n = 0; n < numNodes; n++)
-			{				 
-				int candidateIndex = RandomUtils.random(0, N-1);
-				while(indexesThisCDN.contains(candidateIndex))
-					candidateIndex = RandomUtils.random(0, N-1);				
-				indexesThisCDN.add(candidateIndex);
-			}
-			this.cdnIndexes.add(indexesThisCDN);
+			final int numNodes = 3;	
+			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
+			Collections.shuffle(shuffledNodes , rand);
+			res.add(new HashSet<> (shuffledNodes.subList(0 , numNodes-1)));
 		}		
-		return this.cdnIndexes;
+		return res;
 	}
 	
 	// Function to generate the services randomly (x_s,cagr)
@@ -88,15 +111,15 @@ public class TrafficTrendUtils {
 		{			
 			int appService = appServiceIndex.get(a);
 			int numberofAppsPerThisService = Collections.frequency(appServiceIndex, appService);
-			int numCDNs = RandomUtils.random(1, 3);
+			int numCDNsForThisApplication = RandomUtils.random(1, 3);
 			Collections.shuffle(shuffleCDNs);
-			int[] appCDNs = new int[numCDNs];
+			int[] indexesOfCDNsOfThisApplication = new int[numCDNsForThisApplication];
 			double x_a = x_s[appService]/(double) numberofAppsPerThisService;
 			
-			for (int c = 0; c < numCDNs; c++)
-				appCDNs[c] = shuffleCDNs.get(c);
+			for (int c = 0; c < numCDNsForThisApplication; c++)
+				indexesOfCDNsOfThisApplication[c] = shuffleCDNs.get(c);
 
-			this.apps.add(Triple.of(x_a, appService, appCDNs));
+			this.apps.add(Triple.of(x_a, appService, indexesOfCDNsOfThisApplication));
 		}		
 		
 		return this.apps;
@@ -141,64 +164,62 @@ public class TrafficTrendUtils {
 	
 	public int addDcIntoCDN(NetPlan netPlan, int a, int c, double G, DoubleMatrix2D trafficMatrix)
 	{
-		List<Integer> currentIndexes = this.cdnIndexes.get(c);
+		final List<Node> originalDCsInCDN = new ArrayList<Node> (this.cdnNodes_c.get(c)); 
+		List<Node> currentDCsInCDN = this.cdnNodes_c.get(c);
 
-		int numberOfNewDCs = 0;
-		
-		if (this.lastInitialTraffic[c] == 0) this.lastInitialTraffic[c] =  trafficMatrix.zSum();
-		double intialCDNsTraffic = this.lastInitialTraffic[c];
+		/* First time passes */
+		if (this.trafficInPreivousYearWhenADCWasCreated[c] == 0) this.trafficInPreivousYearWhenADCWasCreated[c] =  trafficMatrix.zSum();
+
+		double intialCDNsTraffic = this.trafficInPreivousYearWhenADCWasCreated[c];
 		double currentCDNTraffic = trafficMatrix.zSum();
-		int N_dc = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);	
-			
-		int N = netPlan.getNumberOfNodes();
+		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);	
+		final int N = netPlan.getNumberOfNodes();
 		
-		if(N_dc >= 1 && currentIndexes.size()+N_dc <= N)
+		if(numberOfNewDCsToCreate >= 1 && currentDCsInCDN.size() + numberOfNewDCsToCreate <= N)
 		{
-			for (int n1 = 0; n1 < N_dc; n1++)
+			for (int n1 = 0; n1 < numberOfNewDCsToCreate; n1++)
 			{
-				double bestTraffic = 0;
-				int bestIndex = -1;
-				double nodeTraffic = 0;
-				
+				/* Selection of the placement for the new DC */
+				final Set<Node> placementCandidates = Sets.difference(new HashSet<>(netPlan.getNodes()) , new HashSet<>(currentDCsInCDN));
+				Node chosenNode = null;
 				if (rand.nextDouble() < 0.8)					
 				{
-					for (int n = 0; n < N; n++)
+					/* Take the best option */
+					double bestTraffic = -Double.MAX_VALUE;
+					for (Node candidate : placementCandidates)
 					{
-						if (!currentIndexes.contains(n))
-						{								
-							Node node = netPlan.getNode(n);							
-							nodeTraffic = node.getIngressCarriedTraffic()+node.getEgressCarriedTraffic();
-							
-							if (nodeTraffic > bestTraffic)
-							{
-								bestTraffic = nodeTraffic;
-								bestIndex = n;
-							}	
-						}
+						final double nodeTraffic = trafficMatrix.viewColumn(candidate.getIndex()).zSum() + trafficMatrix.viewRow(candidate.getIndex()).zSum();   
+						if (nodeTraffic > bestTraffic)
+						{
+							bestTraffic = nodeTraffic;
+							chosenNode = candidate;
+						}	
 					}
 				}
 				else
 				{
-					int newCandidate = RandomUtils.random(0, N-1);
-					while (currentIndexes.contains(newCandidate))
-						newCandidate = RandomUtils.random(0, N-1);					
-					bestIndex = newCandidate;					
+					chosenNode = new ArrayList<Node> (placementCandidates).get(rand.nextInt(placementCandidates.size()));
 				}	
-				if(bestIndex != -1)
-				{
-					currentIndexes.add(bestIndex);	
-					updateReplicaPlacements(a,c,bestIndex);
-					numberOfNewDCs++;
-				}
+				
+				if(chosenNode == null) throw new RuntimeException();
+				
+				currentDCsInCDN.add(chosenNode);
+//				int[] appCDNs = this.apps.get(a).getThird();
+//				for(int appCDNIndex = 0; appCDNIndex < C; appCDNIndex++)
+//					if(c == appCDNs[appCDNIndex]) updateReplicaPlacements(a,appCDNIndex,chosenNode);
 			}
-			this.lastInitialTraffic[c] = currentCDNTraffic;
+			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
 		}
-		return numberOfNewDCs;
-		
+		return originalDCsInCDN.size() - currentDCsInCDN.size ();
 	}
 	
-	public double[] computeNumberOfAccesses(int U)
+	/** For making the Zipf distribution 
+	 * @param U
+	 * @return
+	 */
+	public static void updateZipfDistributionValues (int U)
 	{		
+		zipfDitribution = new double [U];
 		double[] x_u = new double[U];
 		double total = 0;
 		
@@ -208,52 +229,53 @@ public class TrafficTrendUtils {
 			total += x_u[i];
 		}
 		for (int i = 0; i < U; i++)
-			this.N_u[i] = x_u[i]/total;	
-		
-		return this.N_u;
+			zipfDitribution [i] = x_u[i]/total;	
 	}
 	
-	public List<List<List<List<Integer>>>> computeInitialReplicaPlacements (List<List<Integer>> cdnIndexesNodes)
+
+	
+	
+	public List<List<List<Set<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , List<Set<Node>> listDCPositionsPerCDN_c , double averageNumberOfReplicasPerCU , DoubleMatrix2D rtt_n1n2 , double [] population_n)
 	{
+		final List<List<List<Set<Node>>>> res = new ArrayList<> ();
 
 		for(Triple<Double, Integer, int[]> apps : this.apps)
 		{
-			List<List<List<Integer>>> replicaPlacementsThisApp = new ArrayList<List<List<Integer>>>();
-			int[] cdnThisApp = apps.getThird();
-			for(int c = 0; c < cdnThisApp.length; c++)
+			List<List<Set<Node>>> replicaPlacementsThisApp = new ArrayList<>();
+			int[] cdnsThisApp = apps.getThird();
+			for(int c = 0; c < cdnsThisApp.length; c++)
 			{
-				List<Integer> cdn = cdnIndexesNodes.get(c);
-				List<List<Integer>> replicaPlacesThisCDN = new ArrayList<List<Integer>>();
-				int cdnSize = cdn.size();
-				
+				Set<Node> cdnDCs = listDCPositionsPerCDN_c.get(c);
+				List<Set<Node>> replicaPlacesThisCDNAllCUs = new ArrayList<>();
+				final int cdnNumDCs = cdnDCs.size();
+				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U / cdnNumDCs);
+				Map<Node , Integer> availableCapacityPerNodeInNumberOfReplicas = new HashMap <> ();
+				for (Node dc : np.getNodes()) 
+					availableCapacityPerNodeInNumberOfReplicas.put(dc , cdnDCs.contains(dc)? maximumNumberReplicasInEachDCEachApp : 0);
 				for(int i = 0; i < U; i++)			
 				{
-					int numReplicas = RandomUtils.random(2, cdnSize);
-					List<Integer> cdnCopy = cdn;
-					Collections.shuffle(cdnCopy);
-					List<Integer> indexesContentUnit = new ArrayList<Integer>();
-					for(int index = 0; index < numReplicas; index++)
-						indexesContentUnit.add(cdnCopy.get(index));
-					replicaPlacesThisCDN.add(indexesContentUnit);
+					final double averageNumberOfReplicasThisCU = averageNumberOfReplicasPerCU * zipfDitribution [i];
+					final int numReplicasThisCU_minimum = (int) Math.floor(averageNumberOfReplicasThisCU);
+					final double remainder = averageNumberOfReplicasThisCU - numReplicasThisCU_minimum;
+					final boolean roundUp = rand.nextDouble() < remainder;
+					final int numReplicasThisCU = numReplicasThisCU_minimum + (roundUp? 1 : 0);
+					final Map<Node,Integer> numReplicasPlacedPerNode = ReplicaPlacement.placeReplicas(np , availableCapacityPerNodeInNumberOfReplicas , numReplicasThisCU , rtt_n1n2 , population_n);
+					final Set<Node> nodesWithReplica = new HashSet<> ();
+					for (Node nodeOfReplica : numReplicasPlacedPerNode.keySet())
+					{
+						final int numReplicasHere = numReplicasPlacedPerNode.get(nodeOfReplica);
+						availableCapacityPerNodeInNumberOfReplicas.put (nodeOfReplica , availableCapacityPerNodeInNumberOfReplicas.get(nodeOfReplica) - numReplicasHere);  
+						if (numReplicasHere > 0) nodesWithReplica.add(nodeOfReplica);
+					}
+					replicaPlacesThisCDNAllCUs.add(nodesWithReplica);
 				}		
-				replicaPlacementsThisApp.add(replicaPlacesThisCDN);			
+				replicaPlacementsThisApp.add(replicaPlacesThisCDNAllCUs);			
 			}
-			this.replicaPlacements.add(replicaPlacementsThisApp);
+			res.add(replicaPlacementsThisApp);
 		}
-		return this.replicaPlacements;
+		return this.replicaPlacements_acu;
 	}
 	
-	public void updateReplicaPlacements(int a, int c, int bestIndex)
-	{
-		for (int i = 0; i < U; i++)
-			if (rand.nextDouble() < 200*this.N_u[i])
-				this.replicaPlacements.get(a).get(c).get(i).add(bestIndex);			
-	}
-	
-	public List<List<List<List<Integer>>>> checkReplicaPlacements()
-	{
-		return this.replicaPlacements;
-	}
 	
 	// This method set the node population
 		public void setNodePopulation(NetPlan netPlan)
@@ -378,6 +400,9 @@ public class TrafficTrendUtils {
 				}
 			}	
 		}
+		
+		
+		
 	
 }
 		

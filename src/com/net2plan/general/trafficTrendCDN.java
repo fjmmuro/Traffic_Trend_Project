@@ -108,7 +108,7 @@ public class trafficTrendCDN implements IAlgorithm
 		netPlan.setRoutingType(RoutingType.SOURCE_ROUTING);	
 		
 		// Read services, applications and available CDNs
-		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U);		
+		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U, rand);		
 //		appAndCDNInfo.setNodePopulation(netPlan);	
 		appAndCDNInfo.generateServicePerApp();
 		
