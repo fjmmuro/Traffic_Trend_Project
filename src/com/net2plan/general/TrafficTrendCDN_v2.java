@@ -106,7 +106,7 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 			path = "../libcplex1261.so";
 		
 		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
-		List<Set<Node>> nodesWithDCPerCDN_c = TrafficTrendUtils.getInitialDCPlacementPerCDN(originalnetPlan , C , rand);
+		List<Set<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(originalnetPlan , C , rand);
 		List<Triple<Double,Double,Double>> servicesInfo = appAndCDNInfo.getServices();				
 		
 		int iniNumberDCs = 0;
@@ -147,11 +147,9 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 			
 //			double timenow = (System.nanoTime()-iniTime)*1e-9; 
 //			System.out.println("Year "+y+ " in " + timenow + " seconds.");
-			double[] stat_sumTotalTrafficInLinksSummingOnlyTelcoTelcoThisYear = new double[S];
 			double[] stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s = new double[S];
 			double[] stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s = new double[S];
 			double[] stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s = new double[S];
-			double[] stat_sumTotalOfferedTrafficSummingOnlyTelcoTelcoThisYear = new double[S];
 			double[] stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s = new double[S];
 			double[] propagationTimeMultipliedByGbpsPerServiceThisYear_s = new double[S];
 

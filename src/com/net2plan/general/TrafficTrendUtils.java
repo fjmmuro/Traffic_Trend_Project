@@ -52,7 +52,7 @@ public class TrafficTrendUtils
 	private Random rand;
 	
 	DoubleMatrix2D xas = DoubleFactory2D.dense.make(A,S);
-	List<List<Node>> cdnNodes_c = new ArrayList<>();
+	List<Set<Node>> cdnNodes_c = new ArrayList<>();
 	List<List<List<Set<Node>>>> replicaPlacements_acu = new ArrayList<>(); // for each app, CDN and content unit, the places where it is available
 	private List<Triple<Double, Double,Double>> services = new ArrayList<>();
 	private List<Triple<Double, Integer, int[]>> apps = new ArrayList<>();
@@ -75,18 +75,18 @@ public class TrafficTrendUtils
 	}
 	
 	// Function to generate the CDN randomly (list<indexes>)
-	public static List<Set<Node>> getInitialDCPlacementPerCDN(NetPlan np , final int C , final Random rand)
+	public List<Set<Node>> getInitialDCPlacementPerCDN(NetPlan np , final int C , final Random rand)
 	{		
 		final List<Set<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			//int numNodes = RandomUtils.random(2, 4);	
 			final int numNodes = 3;	
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
-			res.add(new HashSet<> (shuffledNodes.subList(0 , numNodes-1)));
+			res.add(new HashSet<> (shuffledNodes.subList(0 , numNodes)));
 		}		
-		return res;
+		this.cdnNodes_c = res;
+		return this.cdnNodes_c;
 	}
 	
 	// Function to generate the services randomly (x_s,cagr)
@@ -165,7 +165,7 @@ public class TrafficTrendUtils
 	public int addDcIntoCDN(NetPlan netPlan, int a, int c, double G, DoubleMatrix2D trafficMatrix)
 	{
 		final List<Node> originalDCsInCDN = new ArrayList<Node> (this.cdnNodes_c.get(c)); 
-		List<Node> currentDCsInCDN = this.cdnNodes_c.get(c);
+		Set<Node> currentDCsInCDN = this.cdnNodes_c.get(c);
 
 		/* First time passes */
 		if (this.trafficInPreivousYearWhenADCWasCreated[c] == 0) this.trafficInPreivousYearWhenADCWasCreated[c] =  trafficMatrix.zSum();
@@ -245,20 +245,26 @@ public class TrafficTrendUtils
 			int[] cdnsThisApp = apps.getThird();
 			for(int c = 0; c < cdnsThisApp.length; c++)
 			{
-				Set<Node> cdnDCs = listDCPositionsPerCDN_c.get(c);
+//				System.out.println("---- CDN "+Integer.toString(cdnsThisApp[c]) + " -----");
+				Set<Node> cdnDCs = listDCPositionsPerCDN_c.get(cdnsThisApp[c]);
 				List<Set<Node>> replicaPlacesThisCDNAllCUs = new ArrayList<>();
 				final int cdnNumDCs = cdnDCs.size();
+//				System.out.println(" Num of DCs : " + cdnNumDCs);
 				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U / cdnNumDCs);
 				Map<Node , Integer> availableCapacityPerNodeInNumberOfReplicas = new HashMap <> ();
 				for (Node dc : np.getNodes()) 
 					availableCapacityPerNodeInNumberOfReplicas.put(dc , cdnDCs.contains(dc)? maximumNumberReplicasInEachDCEachApp : 0);
-				for(int i = 0; i < U; i++)			
+				for(int u = 0; u < U; u++)			
 				{
-					final double averageNumberOfReplicasThisCU = averageNumberOfReplicasPerCU * zipfDitribution [i];
-					final int numReplicasThisCU_minimum = (int) Math.floor(averageNumberOfReplicasThisCU);
-					final double remainder = averageNumberOfReplicasThisCU - numReplicasThisCU_minimum;
-					final boolean roundUp = rand.nextDouble() < remainder;
-					final int numReplicasThisCU = numReplicasThisCU_minimum + (roundUp? 1 : 0);
+//					final double averageNumberOfReplicasThisCU = averageNumberOfReplicasPerCU * zipfDitribution [u];
+//					final double averageNumberOfReplicasThisCU = maximumNumberReplicasInEachDCEachApp * zipfDitribution [u];
+//					final int numReplicasThisCU_minimum = 1 + (int) Math.floor(averageNumberOfReplicasThisCU);
+//					final double remainder = averageNumberOfReplicasThisCU - numReplicasThisCU_minimum;
+//					final boolean roundUp = rand.nextDouble() < remainder;
+//					final int numReplicasThisCU = numReplicasThisCU_minimum + (roundUp? 1 : 0);
+					
+					final int numReplicasThisCU = 1 + rand.nextInt(cdnNumDCs) ; 
+//					System.out.println("numReplicasThisCU: " + numReplicasThisCU);
 					final Map<Node,Integer> numReplicasPlacedPerNode = ReplicaPlacement.placeReplicas(np , availableCapacityPerNodeInNumberOfReplicas , numReplicasThisCU , rtt_n1n2 , population_n);
 					final Set<Node> nodesWithReplica = new HashSet<> ();
 					for (Node nodeOfReplica : numReplicasPlacedPerNode.keySet())
@@ -273,7 +279,7 @@ public class TrafficTrendUtils
 			}
 			res.add(replicaPlacementsThisApp);
 		}
-		return this.replicaPlacements_acu;
+		return res;
 	}
 	
 	

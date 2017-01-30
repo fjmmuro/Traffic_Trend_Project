@@ -32,20 +32,19 @@ public class ReplicaPlacement
 		OptimizationProblem op = new OptimizationProblem();
 
 		/* Set some input parameters */
-		op.setInputParameter("c_n1n2", rtt_n1n2);
+		op.setInputParameter("c_n1n2", rtt_n1n2); // RTT resulting for the traffic of users in node n
 		op.setInputParameter("K", numReplicas);
 		final double [] u_n = new double [N]; 
-		for (Entry<Node,Integer> entry : availableReplicaPositionsPerNode.entrySet()) 
-		{
+		for (Entry<Node,Integer> entry : availableReplicaPositionsPerNode.entrySet()) 		
 			u_n [entry.getKey().getIndex()] = entry.getValue();
-		}
+		
 		op.setInputParameter("u_n", u_n , "row");
 		op.setInputParameter("pop_n", population_n , "row");
-		op.setInputParameter("M", 2E6);
+//		op.setInputParameter("M", 2E6);
 		
 		/* Add the decision variables to the problem */
 		op.addDecisionVariable("r_n", true, new int[] { 1, N }, new double [N], u_n); // number of replicas in each node
-		op.addDecisionVariable("closest_n1n2", true, new int[] { N, N }, 0, 1); // RTT resulting for the traffic of users in node n
+		op.addDecisionVariable("closest_n1n2", true, new int[] { N, N }, 0, 1); 
 
 		/* Sets the objective function */
 		op.setObjectiveFunction("minimize", "sum (pop_n * (c_n1n2 .* closest_n1n2))");
@@ -53,7 +52,8 @@ public class ReplicaPlacement
 		/* Constraints */
 		op.addConstraint("sum(r_n) == K"); // distribute the given number of replicas
 		op.addConstraint("sum(closest_n1n2,1) == 1"); // each node has exactly one closest one with a replica
-		op.addConstraint("closest_n1n2(all,:) <= r_n"); // a closest node must be a node with a replica
+//		op.addConstraint("closest_n1n2(all,:) <= r_n"); // a closest node must be a node with a replica
+//		op.addConstraint("sum(closest_n1n2,2) <= r_n");
 		
 		/* Call the solver to solve the problem */
 		op.solve("cplex", "solverLibraryName", "" , "maxSolverTimeInSeconds" , 10.0);
