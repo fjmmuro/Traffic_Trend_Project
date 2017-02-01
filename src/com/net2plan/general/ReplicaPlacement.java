@@ -1,6 +1,7 @@
 package com.net2plan.general;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -8,6 +9,7 @@ import com.jom.OptimizationProblem;
 import com.net2plan.interfaces.networkDesign.Net2PlanException;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
+import com.net2plan.utils.DoubleUtils;
 
 import cern.colt.matrix.tdouble.DoubleMatrix1D;
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
@@ -77,5 +79,73 @@ public class ReplicaPlacement
 		
 		return numReplicasPerNode;
 	}
+	
+	public static DoubleMatrix2D placeReplicasJavi (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int capacityInNumberOfCU, double [] popularity, int U)
+	{
+		/* Basic checks */
+//		final int N = netPlan.getNumberOfNodes();
+
+		/* Create the optimization problem object (JOM library) */
+		OptimizationProblem op = new OptimizationProblem();
+		
+		int numOfDCs = dataCentersThisCDNThisApp.size();
+
+		
+		/* Set some input parameters */
+		op.setInputParameter("C", capacityInNumberOfCU);
+		op.setInputParameter("D", numOfDCs);							// Number of DC this CDN
+		op.setInputParameter("U", U);   								// Number of content units
+		
+		System.out.println("num of DCs = " +  numOfDCs);		
+		System.out.println("C = " + capacityInNumberOfCU);
+		
+		double[] rtt_d = new double[numOfDCs];
+		int d = 0;
+		for (Node dc : dataCentersThisCDNThisApp) 	
+		{
+			rtt_d [d] = DoubleUtils.average(rtt_n1n2.viewColumn(dc.getIndex()).toArray());
+			d++;
+		}
+		op.setInputParameter("rtt_d", rtt_d,"row"); 			// mean RTT to the DC d from the rest of the network
+		op.setInputParameter("p_u", popularity, "row");			// Popularity of the content units
+		
+		/* Add the decision variables to the problem */
+		op.addDecisionVariable("r_ud", true, new int[] { U, numOfDCs }, 0, 1); // number of replicas in each node
+
+		/* Sets the objective function */
+		op.setObjectiveFunction("maximize", "sum (p_u * r_ud * (1./rtt_d')) ");
+
+		/* Constraints */
+		op.addConstraint("sum(r_ud) <= 0.8*C"); // adjust the number of replicas to the 80% of the total capacity in the CDN 
+		op.addConstraint("sum(r_ud,2) >= 1"); // At least one replica of each content unit in the CDN
+		op.addConstraint("sum(r_ud,2) <= D"); // At most D replicas of each content unit in the CDN
+		op.addConstraint("sum(r_ud,1) <= C"); // The content units must be at less than the capacity of the DC
+		
+		/* Call the solver to solve the problem */
+		op.solve("cplex", "solverLibraryName", "" , "maxSolverTimeInSeconds" , 10.0);
+
+		/* If no solution is found, quit */
+		if (op.feasibleSolutionDoesNotExist()) throw new Net2PlanException("The problem has no feasible solution");
+		if (!op.solutionIsFeasible()) throw new Net2PlanException("A feasible solution was not found");
+		
+		/* Retrieve the optimum solutions */
+		DoubleMatrix2D  z_ud = op.getPrimalSolution("r_ud").view2D();
+		for (int d1 = 0; d1 < numOfDCs; d1 ++)
+			if (z_ud.viewColumn(d1).zSum() > capacityInNumberOfCU) throw new RuntimeException();
+		
+		System.out.println("-------");
+		String res = "";
+		for(int u = 0; u < U; u++)	
+		{
+			for (int d2 = 0; d2 < numOfDCs; d2++)
+				res = res + z_ud.get(u, d2) + " " ;
+			System.out.println(res);
+			res = "";
+		}
+		
+		return z_ud;
+	}
+	
+	
 	
 }
