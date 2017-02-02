@@ -3,6 +3,7 @@ package com.net2plan.general;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -125,11 +126,6 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 		final DoubleMatrix1D linkCost = DoubleFactory1D.dense.make(E,1);
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (originalnetPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco);
 		
-//		DoubleMatrix2D initialTraffMatrixTelcoTelco = DoubleFactory2D.dense.make(N,N,0);							
-		//DoubleMatrix2D traffMatrix = DoubleFactory2D.dense.make(N,N,0);		
-		
-//		final double[] contentUnitPopularityAccordingToZipfDistribution_u = appAndCDNInfo.computeNumberOfAccesses(U);
-//		if (Math.abs(DoubleUtils.sum(contentUnitPopularityAccordingToZipfDistribution_u) - 1) > 0.001) throw new RuntimeException();
 		final Map<Pair<Node,Node>,List<List<Link>>> cpl = originalnetPlan.computeUnicastCandidatePathList (null , 1, -1, -1, -1, -1,-1, -1, null);
 		final Map<Set<Node>,Set<Link>> cplMulticast = new HashMap<> ();
 		final DoubleMatrix2D rtt_n1n2 = DoubleFactory2D.dense.make(N,N);
@@ -207,8 +203,10 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 							propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += 0.8 * traffic * rtt_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());
 							
 							/* 20% of traffic is spread randomly among all the DCs in the CDN */
-							final int numDCsWithReplicas = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size();
-							for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
+							final int numDCsWithReplicas = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
+							final Set<Node> remainingDCs = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN;
+							remainingDCs.remove(closestReplicaNode);
+							for (Node n : remainingDCs)
 							{
 								stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas)  * traffic * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
 								propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas) * traffic * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
