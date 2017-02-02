@@ -82,7 +82,7 @@ public class ReplicaPlacement
 		return numReplicasPerNode;
 	}
 	
-	public static DoubleMatrix2D placeReplicasJavi (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, int U)
+	public static DoubleMatrix2D placeReplicasJavi (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
 	{
 		/* Basic checks */
 //		final int N = netPlan.getNumberOfNodes();
@@ -90,47 +90,56 @@ public class ReplicaPlacement
 		/* Create the optimization problem object (JOM library) */
 		OptimizationProblem op = new OptimizationProblem();
 		
-		int numOfDCs = dataCentersThisCDNThisApp.size();
-		int N = netPlan.getNumberOfNodes();
-		
+		final int numOfDCs = dataCentersThisCDNThisApp.size();
+		final int N = netPlan.getNumberOfNodes();
+		final int capacityofDC = (int) Math.ceil(totalNumberOfReplicasToDistribute / (double) numOfDCs);
 		/* Set some input parameters */
-		op.setInputParameter("R", totalNumberOfReplicasToDistribute);
 		
 		System.out.println("num of DCs = " +  numOfDCs);		
-		System.out.println("C = " + totalNumberOfReplicasToDistribute);
+		System.out.println("total number of Replicas = " + totalNumberOfReplicasToDistribute);
+		System.out.println("number of replicas per DC: " + capacityofDC);
 		
-		double[][][] rtt_d = new double[U][N][numOfDCs];
-		double[][][] p_u = new double[U][N][numOfDCs];
+		double[][][] rtt_und = new double[U][N][numOfDCs];
+		double[][][] popularity_und = new double[U][N][numOfDCs];
+		double[][][] population_und = new double[U][N][numOfDCs];
 		
 		for(int u = 0; u < U; u++)		
 			for (int n = 0; n < N; n ++)			
 				for (int d = 0; d < numOfDCs; d++) 	
 				{
-					p_u[u][n][d] = popularity[u];
-					rtt_d[u][n][d] = rtt_n1n2.get(n, dataCentersThisCDNThisApp.get(d).getIndex());
+					popularity_und[u][n][d] = popularity[u];
+					population_und[u][n][d] = population_n[n];
+					rtt_und[u][n][d] = rtt_n1n2.get(n, dataCentersThisCDNThisApp.get(d).getIndex());
 				}
 			
 				
-		op.setInputParameter("rtt_d", new DoubleMatrixND(rtt_d)); 												// mean RTT to the DC d from the rest of the network
-		op.setInputParameter("p_u", new DoubleMatrixND(p_u));			// Popularity of the content units
-		op.setInputParameter("CAPACITYDC", Math.ceil(totalNumberOfReplicasToDistribute / numOfDCs));			// Popularity of the content units
+		op.setInputParameter("R", totalNumberOfReplicasToDistribute);
+		op.setInputParameter("rtt_und", new DoubleMatrixND(rtt_und)); 												// mean RTT to the DC d from the rest of the network
+		op.setInputParameter("population_und", new DoubleMatrixND(population_und));			// Popularity of the content units
+		op.setInputParameter("popularity_und", new DoubleMatrixND(popularity_und));			// Popularity of the content units
+		op.setInputParameter("CAPACITYDC", capacityofDC);			// Popularity of the content units
 		
 		/* Add the decision variables to the problem */
-		op.addDecisionVariable("r_ud", true, new int[] { U, numOfDCs }, 0, 1); // there is a replica of u in dc d
+		op.addDecisionVariable("r_ud", true, new int[] { U, numOfDCs }, 0, Integer.MAX_VALUE); // there is a replica of u in dc d
 		op.addDecisionVariable("closest_und", true, new int[] { U, N , numOfDCs }, 0, 1); // 1 if for cu u, the DC d is the closest to user in node n
 
 		/* Sets the objective function */
-		op.setObjectiveFunction("minimize", "sum (p_u .* closest_und .* rtt_d ) ");
+		op.setObjectiveFunction("minimize", "sum (popularity_und .* population_und .* closest_und .* rtt_und ) ");
 
 		/* Constraints */
+		op.addConstraint("sum(closest_und,3) == 1");
 		for (int n = 0 ; n < N ; n ++)
 		{
 			op.setInputParameter ("n" , n);
-			op.addConstraint("closest_und(all,n,all) <= r_ud "); // 
+			op.addConstraint("sum(closest_und(all,n,all),2) <= r_ud "); // 
 		}
 		op.addConstraint("sum(r_ud) == R"); 					// we distribute all the replicas
 		op.addConstraint("sum(r_ud,1) <= CAPACITYDC"); 			// no DC is oversubscribed
-		op.addConstraint("sum(r_ud,2) >= 1"); 					// redundant
+
+		
+		
+		
+		//		op.addConstraint("sum(r_ud,2) >= 1"); 					// redundant
 
 //		for (int n = 0 ; n < N ; n ++)
 //		{
@@ -144,7 +153,7 @@ public class ReplicaPlacement
 //			op.setInputParameter ("u" , u);
 //			op.addConstraint("sum(closest_und(u,all,all),2) == 1 ");
 //		}
-		
+		                  
 		
 		/* Call the solver to solve the problem */
 		op.solve("cplex", "solverLibraryName", "" );
@@ -154,25 +163,24 @@ public class ReplicaPlacement
 		if (!op.solutionIsFeasible()) throw new Net2PlanException("A feasible solution was not found");
 		
 		/* Retrieve the optimum solutions */
-		DoubleMatrix2D  z_ud = op.getPrimalSolution("r_ud").view2D();
+		DoubleMatrix2D  r_ud = op.getPrimalSolution("r_ud").view2D();
 		for (int d1 = 0; d1 < numOfDCs; d1 ++)
-			if (z_ud.viewColumn(d1).zSum() > totalNumberOfReplicasToDistribute) throw new RuntimeException();
-		
-		System.out.println("-------");
-		for (int d1 = 0; d1 < rtt_d.length; d1++)
-			System.out.println("Rtt("+d1+") = " + rtt_d[d1]);
+			if (r_ud.viewColumn(d1).zSum() > capacityofDC) throw new RuntimeException();
+		for (int u = 0; u < U; u ++)
+			if (r_ud.viewRow(u).zSum() == 0) throw new RuntimeException();
+		if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
 		
 		String res = "";
 		for(int u = 0; u < U; u++)	
 		{
 			res += "U = " + u + " p_u = " + popularity[u] + " " ;
 			for (int d2 = 0; d2 < numOfDCs; d2++)
-				res += z_ud.get(u, d2) + " " ;
+				res += r_ud.get(u, d2) + " " ;
 			System.out.println(res);
 			res = "";
 		}
 		
-		return z_ud;
+		return r_ud;
 	}
 	
 	

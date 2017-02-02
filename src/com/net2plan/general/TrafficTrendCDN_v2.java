@@ -139,7 +139,6 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 		}
 		List<List<List<Set<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);
 		
-
 		for (int y = 0; y < simYears; y++)
 		{
 			

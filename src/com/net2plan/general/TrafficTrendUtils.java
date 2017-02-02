@@ -254,7 +254,7 @@ public class TrafficTrendUtils
 //				for (Node dc : np.getNodes()) 
 //					availableCapacityPerNodeInNumberOfReplicas.put(dc , cdnDCs.contains(dc)? maximumNumberReplicasInEachDCEachApp : 0);
 				
-				DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicasJavi(np, listDCsThisCDN, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution, U); 
+				DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicasJavi(np, listDCsThisCDN, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
 				
 				for(int u = 0; u < U; u++)			
 				{
