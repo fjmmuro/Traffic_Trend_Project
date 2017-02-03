@@ -39,7 +39,7 @@ import cern.jet.math.tdouble.DoubleFunctions;
 /** This is a template to be used in the lab work, a starting point for the students to develop their programs
  * 
  */
-public class TrafficTrendCDN_v2 implements IAlgorithm
+public class TrafficTrendCDN implements IAlgorithm
 {
 	
 	private InputParameter simYears = new InputParameter ("simYears", (int) 20 , "Simulation Years from 2016");
@@ -72,6 +72,7 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 	 * @param net2planParameters Pair name-value for some general parameters of Net2Plan
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public String executeAlgorithm(NetPlan originalnetPlan, Map<String, String> algorithmParameters, Map<String, String> net2planParameters)
 	{		
@@ -109,11 +110,11 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 			path = "../libcplex1261.so";
 		
 		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
-		List<Set<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(originalnetPlan , C , rand);
+		List<List<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(originalnetPlan , C , rand);
 		List<Triple<Double,Double,Double>> servicesInfo = appAndCDNInfo.getServices();				
 		
 		int iniNumberDCs = 0;
-		for(Set<Node> dcsInThisCDN : nodesWithDCPerCDN_c)		
+		for(List<Node> dcsInThisCDN : nodesWithDCPerCDN_c)		
 			iniNumberDCs += dcsInThisCDN.size();
 			
 		stat_numberOfNewDCCreatedEachYear.add(0,(double)iniNumberDCs);
@@ -127,7 +128,7 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (originalnetPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco);
 		
 		final Map<Pair<Node,Node>,List<List<Link>>> cpl = originalnetPlan.computeUnicastCandidatePathList (null , 1, -1, -1, -1, -1,-1, -1, null);
-		final Map<Set<Node>,Set<Link>> cplMulticast = new HashMap<> ();
+		final Map<List<Node>,Set<Link>> cplMulticast = new HashMap<> ();
 		final DoubleMatrix2D rtt_n1n2 = DoubleFactory2D.dense.make(N,N);
 		final DoubleMatrix2D numHops_n1n2 = DoubleFactory2D.dense.make(N,N);
 		for (Pair<Node,Node> n1n2 : cpl.keySet())
@@ -137,7 +138,7 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 			rtt_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , rtt);
 			numHops_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , seqLinks.size());
 		}
-		List<List<List<Set<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);
+		List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);
 		
 		for (int y = 0; y < simYears; y++)
 		{
@@ -171,12 +172,13 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 					for (int u=0; u < U; u++)					
 					{
 						// D2C Traffic Matrices
-						Set<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
+						List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
 						final DoubleMatrix2D traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);
 						
 						for(Node n1 : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)				
 							for(Node n2 : originalnetPlan.getNodes())						
 								traffMatrixAppCDN.set(n1.getIndex(), n2.getIndex(), populationWeightVector[n1.getIndex()]*populationWeightVector[n2.getIndex()]);
+						
 						final double sum_traffMatrixAppCDN = traffMatrixAppCDN.zSum();
 						final DoubleMatrix2D normalizedTrafficMatrixAppCDN_nc = traffMatrixAppCDN.assign(DoubleFunctions.mult(h_ac*TrafficTrendUtils.zipfDitribution[u] / sum_traffMatrixAppCDN));
 						traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[c]).assign(normalizedTrafficMatrixAppCDN_nc,DoubleFunctions.plus);
@@ -195,6 +197,7 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 									closestReplicaNode = n; 
 									minNumHops = (int) numHops_n1n2.get(userNode.getIndex() , n.getIndex()); 
 								}
+							
 							final double traffic = normalizedTrafficMatrixAppCDN_nc.get(userNode.getIndex() , closestReplicaNode.getIndex());
 
 							/* 80% of traffic goes to closest replica */
@@ -203,12 +206,14 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 							
 							/* 20% of traffic is spread randomly among all the DCs in the CDN */
 							final int numDCsWithReplicas = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
-							final Set<Node> remainingDCs = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN;
-							remainingDCs.remove(closestReplicaNode);
-							for (Node n : remainingDCs)
+
+							for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
 							{
-								stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas)  * traffic * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
-								propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas) * traffic * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
+								if (n.getIndex() != closestReplicaNode.getIndex())
+								{
+									stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas)  * traffic * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
+									propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas) * traffic * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
+								}
 							}
 						}
 
@@ -253,7 +258,6 @@ public class TrafficTrendCDN_v2 implements IAlgorithm
 			if(G.getDouble() > 0)	
 			for(int c = 0; c < C; c++)			
 				newDC += appAndCDNInfo.addDcIntoCDN(originalnetPlan, c, G.getDouble(),traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(c));
-					
 			
 			stat_numberOfNewDCCreatedEachYear.add(y+1,newDC);
 			replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);

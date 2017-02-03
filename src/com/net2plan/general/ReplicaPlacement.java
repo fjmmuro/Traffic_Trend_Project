@@ -1,19 +1,15 @@
 
 package com.net2plan.general;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import com.jom.DoubleMatrixND;
 import com.jom.OptimizationProblem;
 import com.net2plan.interfaces.networkDesign.Net2PlanException;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
-import com.net2plan.utils.DoubleUtils;
+import com.net2plan.utils.Pair;
 
-import cern.colt.matrix.tdouble.DoubleMatrix1D;
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
 /**
@@ -27,62 +23,8 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 public class ReplicaPlacement 
 {
 	
-	public static Map<Node,Integer> placeReplicas (NetPlan netPlan, Map<Node,Integer> availableReplicaPositionsPerNode , int numReplicas , DoubleMatrix2D rtt_n1n2 , double [] population_n)
-	{
-		/* Basic checks */
-		final int N = netPlan.getNumberOfNodes();
-
-		/* Create the optimization problem object (JOM library) */
-		OptimizationProblem op = new OptimizationProblem();
-
-		/* Set some input parameters */
-		op.setInputParameter("c_n1n2", rtt_n1n2); // RTT resulting for the traffic of users in node n
-		op.setInputParameter("K", numReplicas);
-		final double [] u_n = new double [N]; 
-		for (Entry<Node,Integer> entry : availableReplicaPositionsPerNode.entrySet()) 		
-			u_n [entry.getKey().getIndex()] = entry.getValue();
-		
-		op.setInputParameter("u_n", u_n , "row");
-		op.setInputParameter("pop_n", population_n , "row");
-//		op.setInputParameter("M", 2E6);
-		
-		/* Add the decision variables to the problem */
-		op.addDecisionVariable("r_n", true, new int[] { 1, N }, new double [N], u_n); // number of replicas in each node
-		op.addDecisionVariable("closest_n1n2", true, new int[] { N, N }, 0, 1); 
-
-		/* Sets the objective function */
-		op.setObjectiveFunction("minimize", "sum (pop_n * (c_n1n2 .* closest_n1n2))");
-
-		/* Constraints */
-		op.addConstraint("sum(r_n) == K"); // distribute the given number of replicas
-		op.addConstraint("sum(closest_n1n2,1) == 1"); // each node has exactly one closest one with a replica
-		op.addConstraint("closest_n1n2(all,:) <= r_n"); // a closest node must be a node with a replica
-//		op.addConstraint("sum(closest_n1n2,2) <= r_n");
-		
-		/* Call the solver to solve the problem */
-		op.solve("cplex", "solverLibraryName", "" , "maxSolverTimeInSeconds" , 10.0);
-
-		/* If no solution is found, quit */
-		if (op.feasibleSolutionDoesNotExist()) throw new Net2PlanException("The problem has no feasible solution");
-		if (!op.solutionIsFeasible()) throw new Net2PlanException("A feasible solution was not found");
-		
-		/* Retrieve the optimum solutions */
-		DoubleMatrix1D  z_j = op.getPrimalSolution("r_n").view1D();
-		if (z_j.zSum() != numReplicas) throw new RuntimeException();
-		Map<Node,Integer> numReplicasPerNode = new HashMap<> ();
-		for (Node n : netPlan.getNodes())
-		{
-			final int numReplicasThisNode = (int) z_j.get(n.getIndex());
-			if (numReplicasThisNode > availableReplicaPositionsPerNode.get(n)) throw new RuntimeException();
-			numReplicasPerNode.put(n , numReplicasThisNode);
-		}
-		
-		/* Check */
-		
-		return numReplicasPerNode;
-	}
 	
-	public static DoubleMatrix2D placeReplicasJavi (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
+	public static Pair<DoubleMatrix2D,DoubleMatrixND> placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
 	{
 		/* Basic checks */
 //		final int N = netPlan.getNumberOfNodes();
@@ -94,11 +36,7 @@ public class ReplicaPlacement
 		final int N = netPlan.getNumberOfNodes();
 		final int capacityofDC = (int) Math.ceil(totalNumberOfReplicasToDistribute / (double) numOfDCs);
 		/* Set some input parameters */
-		
-		System.out.println("num of DCs = " +  numOfDCs);		
-		System.out.println("total number of Replicas = " + totalNumberOfReplicasToDistribute);
-		System.out.println("number of replicas per DC: " + capacityofDC);
-		
+				
 		double[][][] rtt_und = new double[U][N][numOfDCs];
 		double[][][] popularity_und = new double[U][N][numOfDCs];
 		double[][][] population_und = new double[U][N][numOfDCs];
@@ -110,8 +48,7 @@ public class ReplicaPlacement
 					popularity_und[u][n][d] = popularity[u];
 					population_und[u][n][d] = population_n[n];
 					rtt_und[u][n][d] = rtt_n1n2.get(n, dataCentersThisCDNThisApp.get(d).getIndex());
-				}
-			
+				}			
 				
 		op.setInputParameter("R", totalNumberOfReplicasToDistribute);
 		op.setInputParameter("rtt_und", new DoubleMatrixND(rtt_und)); 												// mean RTT to the DC d from the rest of the network
@@ -135,25 +72,6 @@ public class ReplicaPlacement
 		}
 		op.addConstraint("sum(r_ud) == R"); 					// we distribute all the replicas
 		op.addConstraint("sum(r_ud,1) <= CAPACITYDC"); 			// no DC is oversubscribed
-
-		
-		
-		
-		//		op.addConstraint("sum(r_ud,2) >= 1"); 					// redundant
-
-//		for (int n = 0 ; n < N ; n ++)
-//		{
-//			op.setInputParameter ("n" , n);
-//			op.addConstraint("sum(closest_und(all,n,all)) == R "); 
-//			op.addConstraint("sum(closest_und(all,n,all),2) >= 1");
-//			op.addConstraint("sum(closest_und(all,n,all),1) <= CAPACITYDC");
-//		}
-//		for (int u = 0; u < U; u++)
-//		{
-//			op.setInputParameter ("u" , u);
-//			op.addConstraint("sum(closest_und(u,all,all),2) == 1 ");
-//		}
-		                  
 		
 		/* Call the solver to solve the problem */
 		op.solve("cplex", "solverLibraryName", "" );
@@ -163,24 +81,28 @@ public class ReplicaPlacement
 		if (!op.solutionIsFeasible()) throw new Net2PlanException("A feasible solution was not found");
 		
 		/* Retrieve the optimum solutions */
-		DoubleMatrix2D  r_ud = op.getPrimalSolution("r_ud").view2D();
-		for (int d1 = 0; d1 < numOfDCs; d1 ++)
-			if (r_ud.viewColumn(d1).zSum() > capacityofDC) throw new RuntimeException();
+		DoubleMatrix2D r_ud = op.getPrimalSolution("r_ud").view2D();
+		DoubleMatrixND closest_und = op.getPrimalSolution("closest_und");
+		
+		for (int d = 0; d < numOfDCs; d ++)
+			if (r_ud.viewColumn(d).zSum() > capacityofDC) throw new RuntimeException();
 		for (int u = 0; u < U; u ++)
 			if (r_ud.viewRow(u).zSum() == 0) throw new RuntimeException();
 		if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
 		
-		String res = "";
-		for(int u = 0; u < U; u++)	
-		{
-			res += "U = " + u + " p_u = " + popularity[u] + " " ;
-			for (int d2 = 0; d2 < numOfDCs; d2++)
-				res += r_ud.get(u, d2) + " " ;
-			System.out.println(res);
-			res = "";
-		}
+//		String res = "";
+//		for(int u = 0; u < U; u++)	
+//		{
+//			res += "";
+//			for (int d = 0; d < numOfDCs; d++)
+//				res += r_ud.get(u, d) + " " ;
+//			System.out.println(res);
+//			res = "";
+//		}
+//		for (int d = 0; d < numOfDCs; d++)
+//			System.out.println("Num replicas of DC " + d + " = " + r_ud.viewColumn(d).zSum() );
 		
-		return r_ud;
+		return new Pair<DoubleMatrix2D, DoubleMatrixND>(r_ud,closest_und, false);
 	}
 	
 	
