@@ -26,8 +26,6 @@ public class ReplicaPlacement
 	
 	public static Pair<DoubleMatrix2D,DoubleMatrixND> placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
 	{
-		/* Basic checks */
-//		final int N = netPlan.getNumberOfNodes();
 
 		/* Create the optimization problem object (JOM library) */
 		OptimizationProblem op = new OptimizationProblem();
@@ -90,17 +88,16 @@ public class ReplicaPlacement
 			if (r_ud.viewRow(u).zSum() == 0) throw new RuntimeException();
 		if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
 		
-//		String res = "";
-//		for(int u = 0; u < U; u++)	
-//		{
-//			res += "";
-//			for (int d = 0; d < numOfDCs; d++)
-//				res += r_ud.get(u, d) + " " ;
-//			System.out.println(res);
-//			res = "";
-//		}
-//		for (int d = 0; d < numOfDCs; d++)
-//			System.out.println("Num replicas of DC " + d + " = " + r_ud.viewColumn(d).zSum() );
+		System.out.println("  ");
+		String res = "";
+		for(int u = 0; u < U; u++)	
+		{
+			res += "";
+			for (int d = 0; d < numOfDCs; d++)
+				res += r_ud.get(u, d) + " " ;
+			System.out.println(res);
+			res = "";
+		}
 		
 		return new Pair<DoubleMatrix2D, DoubleMatrixND>(r_ud,closest_und, false);
 	}

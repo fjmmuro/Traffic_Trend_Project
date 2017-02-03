@@ -172,8 +172,12 @@ public class TrafficTrendUtils
 		double currentCDNTraffic = trafficMatrix.zSum();
 		
 		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);	
-		final int N = netPlan.getNumberOfNodes();
+		System.out.println("C = " + c);
+		System.out.println("Number of DC to Create = " + numberOfNewDCsToCreate);
+		System.out.println("Number of DC this CDN : " + currentDCsInCDN.size());
 		
+		final int N = netPlan.getNumberOfNodes();
+				
 		if(numberOfNewDCsToCreate >= 1 && currentDCsInCDN.size() + numberOfNewDCsToCreate <= N)
 		{
 			for (int n1 = 0; n1 < numberOfNewDCsToCreate; n1++)
@@ -201,12 +205,16 @@ public class TrafficTrendUtils
 				if(chosenNode == null) throw new RuntimeException();
 				
 				currentDCsInCDN.add(chosenNode);
-				this.cdnNodes_c.get(c).add(chosenNode);
+//				this.cdnNodes_c.get(c).add(chosenNode);
 				
 			}
 			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
 		}
-		return  currentDCsInCDN.size () - originalDCsInCDN.size() ;
+		
+		final int numberOfNewDCs = currentDCsInCDN.size () - originalDCsInCDN.size() ;
+
+		
+		return  numberOfNewDCs;
 	}
 	
 	/** For making the Zipf distribution 
