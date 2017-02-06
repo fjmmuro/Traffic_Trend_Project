@@ -174,11 +174,11 @@ public class TrafficTrendCDN implements IAlgorithm
 						// D2C Traffic Matrices
 						List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
 						final DoubleMatrix2D traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);
-						
-						for(Node n1 : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)				
-							for(Node n2 : originalnetPlan.getNodes())						
-								traffMatrixAppCDN.set(n1.getIndex(), n2.getIndex(), populationWeightVector[n1.getIndex()]*populationWeightVector[n2.getIndex()]);
-						
+												
+						for(Node n1 : originalnetPlan.getNodes())				
+							for(Node n2 : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)						
+								traffMatrixAppCDN.set(n1.getIndex(), n2.getIndex(), populationWeightVector[n1.getIndex()]*populationWeightVector[n2.getIndex()]);						
+					
 						final double sum_traffMatrixAppCDN = traffMatrixAppCDN.zSum();
 						final DoubleMatrix2D normalizedTrafficMatrixAppCDN_nc = traffMatrixAppCDN.assign(DoubleFunctions.mult(h_ac*TrafficTrendUtils.zipfDitribution[u] / sum_traffMatrixAppCDN));
 						traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[c]).assign(normalizedTrafficMatrixAppCDN_nc,DoubleFunctions.plus);

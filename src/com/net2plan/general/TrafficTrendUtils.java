@@ -52,7 +52,7 @@ public class TrafficTrendUtils
 	
 	DoubleMatrix2D xas = DoubleFactory2D.dense.make(A,S);
 	List<List<Node>> cdnNodes_c = new ArrayList<>();
-	List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>(); // for each app, CDN and content unit, the places where it is available
+//	List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>(); // for each app, CDN and content unit, the places where it is available
 	private List<Triple<Double, Double,Double>> services = new ArrayList<>();
 	private List<Triple<Double, Integer, int[]>> apps = new ArrayList<>();
 	
@@ -172,9 +172,9 @@ public class TrafficTrendUtils
 		double currentCDNTraffic = trafficMatrix.zSum();
 		
 		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);	
-		System.out.println("C = " + c);
-		System.out.println("Number of DC to Create = " + numberOfNewDCsToCreate);
-		System.out.println("Number of DC this CDN : " + currentDCsInCDN.size());
+//		System.out.println("C = " + c);
+//		System.out.println("Number of DC to Create = " + numberOfNewDCsToCreate);
+//		System.out.println("Number of DC this CDN : " + currentDCsInCDN.size());
 		
 		final int N = netPlan.getNumberOfNodes();
 				
@@ -204,14 +204,14 @@ public class TrafficTrendUtils
 				
 				if(chosenNode == null) throw new RuntimeException();
 				
-				currentDCsInCDN.add(chosenNode);
-//				this.cdnNodes_c.get(c).add(chosenNode);
+//				currentDCsInCDN.add(chosenNode);
+				this.cdnNodes_c.get(c).add(chosenNode);
 				
 			}
 			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
 		}
 		
-		final int numberOfNewDCs = currentDCsInCDN.size () - originalDCsInCDN.size() ;
+		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
 
 		
 		return  numberOfNewDCs;
@@ -238,7 +238,9 @@ public class TrafficTrendUtils
 	
 	public List<List<List<List<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D rtt_n1n2 , double [] population_n)
 	{
-
+		
+		List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>();
+		
 		for(Triple<Double, Integer, int[]> apps : this.apps)
 		{
 			List<List<List<Node>>> replicaPlacementsThisApp = new ArrayList<>();
@@ -246,27 +248,25 @@ public class TrafficTrendUtils
 			for(int c = 0; c < cdnsThisApp.length; c++)
 			{
 				List<Node> cdnDCs = this.cdnNodes_c.get(cdnsThisApp[c]);
-				List<Node> listDCsThisCDN = new ArrayList<>();
-				listDCsThisCDN.addAll(cdnDCs);
 				List<List<Node>> replicaPlacesThisCDNAllCUs = new ArrayList<>();
 				final int cdnNumDCs = cdnDCs.size();
 				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 				
-				Pair<DoubleMatrix2D, DoubleMatrixND> replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, listDCsThisCDN, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
+				Pair<DoubleMatrix2D, DoubleMatrixND> replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCs, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
 				
 				for(int u = 0; u < U; u++)			
 				{
 					List<Node> dcsThisCU = new ArrayList<>();
 					for(int d = 0; d < cdnNumDCs; d++ )
 						if(replicasPlacementsInThisCDN.getFirst().get(u, d) == 1)													
-							dcsThisCU.add(listDCsThisCDN.get(d));
+							dcsThisCU.add(cdnDCs.get(d));
 					replicaPlacesThisCDNAllCUs.add(dcsThisCU);
 				}		
 				replicaPlacementsThisApp.add(replicaPlacesThisCDNAllCUs);			
 			}
-			this.replicaPlacements_acu.add(replicaPlacementsThisApp);
+			replicaPlacements_acu.add(replicaPlacementsThisApp);
 		}
-		return this.replicaPlacements_acu;
+		return replicaPlacements_acu;
 	}
 	
 	

@@ -88,16 +88,16 @@ public class ReplicaPlacement
 			if (r_ud.viewRow(u).zSum() == 0) throw new RuntimeException();
 		if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
 		
-		System.out.println("  ");
-		String res = "";
-		for(int u = 0; u < U; u++)	
-		{
-			res += "";
-			for (int d = 0; d < numOfDCs; d++)
-				res += r_ud.get(u, d) + " " ;
-			System.out.println(res);
-			res = "";
-		}
+//		System.out.println("  ");
+//		String res = "";
+//		for(int u = 0; u < U; u++)	
+//		{
+//			res += "";
+//			for (int d = 0; d < numOfDCs; d++)
+//				res += r_ud.get(u, d) + " " ;
+//			System.out.println(res);
+//			res = "";
+//		}
 		
 		return new Pair<DoubleMatrix2D, DoubleMatrixND>(r_ud,closest_und, false);
 	}
