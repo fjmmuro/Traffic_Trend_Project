@@ -103,7 +103,7 @@ public class TrafficTrendCDN implements IAlgorithm
 		
 		String path = null;
 		if (!isLocal.getBoolean())
-			path = "../libcplex1261.so";
+			path = "/opt/ibm/ILOG/CPLEX_Studio127/cplex/bin/x86-64_linux/libcplex1270.so";
 		
 		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
 		List<List<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(originalnetPlan , C , rand);
