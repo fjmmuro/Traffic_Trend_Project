@@ -3,7 +3,6 @@ package com.net2plan.general;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,12 +10,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
 import com.net2plan.interfaces.networkDesign.Demand;
 import com.net2plan.interfaces.networkDesign.IAlgorithm;
 import com.net2plan.interfaces.networkDesign.Link;
-import com.net2plan.interfaces.networkDesign.MulticastDemand;
-import com.net2plan.interfaces.networkDesign.MulticastTree;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.libraries.GraphUtils;
@@ -72,7 +68,7 @@ public class TrafficTrendCDN implements IAlgorithm
 	 * @param net2planParameters Pair name-value for some general parameters of Net2Plan
 	 * @return
 	 */
-	@SuppressWarnings("unchecked")
+	
 	@Override
 	public String executeAlgorithm(NetPlan originalnetPlan, Map<String, String> algorithmParameters, Map<String, String> net2planParameters)
 	{		
@@ -221,7 +217,22 @@ public class TrafficTrendCDN implements IAlgorithm
 						final double Nmas = TrafficTrendUtils.zipfDitribution[u];
 						final double replicaTraffic = beta_s*h_ac*Nmas;	
 	
-						final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
+						// Select as origin node the one with the lower total number of hops to the rest replica placements for each content unit
+						Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
+						int minNumHops = Integer.MAX_VALUE;
+						for (Node n1 : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
+						{
+							int numHopsThisNode = 0;
+							for (Node n2 : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)							
+								numHopsThisNode += (int) numHops_n1n2.get(n1.getIndex(), n2.getIndex());
+							
+							if (numHopsThisNode < minNumHops)
+							{
+								originNodeForMulticast = n1; 
+								minNumHops = numHopsThisNode; 
+							}							
+						}
+						
 						final Set<Node> destinationNodes = new HashSet<> (nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
 						destinationNodes.remove(originNodeForMulticast);
 						if(!destinationNodes.isEmpty())
@@ -244,9 +255,6 @@ public class TrafficTrendCDN implements IAlgorithm
 			for(int s=0; s<S; s++)			
 				propagationTimeMultipliedByGbpsPerServiceThisYear_s[s] = propagationTimeMultipliedByGbpsPerServiceThisYear_s[s]/stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s[s];			
 			
-//			stat_sumTotalTrafficInTheLinks.add(y, netPlan.getVectorLinkCarriedTraffic().zSum());
-//			stat_sumTotalOfferedTrafficOfDemandsEvenDemandsInSameNode.add(y, netPlan.getVectorDemandOfferedTraffic().zSum());
-//			stat_sumTotalOfferedMulticastTraffic.add(y, netPlan.getVectorMulticastDemandOfferedTraffic().zSum());
 			stat_averageRTTPerService_s.add(y, propagationTimeMultipliedByGbpsPerServiceThisYear_s);
 			stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerService_s.add(y, stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s);	
 			stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerService_s.add(y, stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s);
@@ -260,7 +268,10 @@ public class TrafficTrendCDN implements IAlgorithm
 				newDC += appAndCDNInfo.addDcIntoCDN(originalnetPlan, c, G.getDouble(),traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(c));
 			
 			stat_numberOfNewDCCreatedEachYear.add(y+1,newDC);
-			replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);
+			
+			// If new DC are created, a new distribution of the replicas is needed
+			if(newDC > 0)
+				replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (originalnetPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector);
 		
 			if(debugMode.getBoolean())
 			{
@@ -276,10 +287,9 @@ public class TrafficTrendCDN implements IAlgorithm
 				System.out.println("* DC to DC traffic: " );
 				System.out.println("  - Offered: " +  DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s));
 				System.out.println("  - In links: " +  DoubleUtils.sum(stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s));
-				System.out.println("* RTT : " + DoubleUtils.sum(propagationTimeMultipliedByGbpsPerServiceThisYear_s));
+				System.out.println("* RTT : " + DoubleUtils.sum(propagationTimeMultipliedByGbpsPerServiceThisYear_s)/(double)S);
 				System.out.println("* Num New DCs: " + newDC);
-			}
-			
+			}			
 		}
 					
 		String root;

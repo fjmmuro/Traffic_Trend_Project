@@ -43,9 +43,9 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 	
-	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Hay que cambiarlo por los valores "reales del cisco vni" no se si normalizarlo a 1 o ponerlo como proporcion del total de trafico
-	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarging cisco vni
-	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Deberian valores menores
+	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
+	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
+	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Beta values for each service
 	
 	double[] trafficInPreivousYearWhenADCWasCreated;
 	private Random rand;
@@ -171,11 +171,7 @@ public class TrafficTrendUtils
 		double intialCDNsTraffic = this.trafficInPreivousYearWhenADCWasCreated[c];
 		double currentCDNTraffic = trafficMatrix.zSum();
 		
-		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);	
-//		System.out.println("C = " + c);
-//		System.out.println("Number of DC to Create = " + numberOfNewDCsToCreate);
-//		System.out.println("Number of DC this CDN : " + currentDCsInCDN.size());
-		
+		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);			
 		final int N = netPlan.getNumberOfNodes();
 				
 		if(numberOfNewDCsToCreate >= 1 && currentDCsInCDN.size() + numberOfNewDCsToCreate <= N)
@@ -202,17 +198,13 @@ public class TrafficTrendUtils
 				else
 					chosenNode = new ArrayList<Node> (placementCandidates).get(rand.nextInt(placementCandidates.size()));
 				
-				if(chosenNode == null) throw new RuntimeException();
-				
-//				currentDCsInCDN.add(chosenNode);
+				if(chosenNode == null) throw new RuntimeException("Chosen Node = null");
 				this.cdnNodes_c.get(c).add(chosenNode);
 				
 			}
 			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
-		}
-		
+		}		
 		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
-
 		
 		return  numberOfNewDCs;
 	}

@@ -21,8 +21,7 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
  * @author Pablo Pavon-Marino
  */
 public class ReplicaPlacement 
-{
-	
+{	
 	
 	public static Pair<DoubleMatrix2D,DoubleMatrixND> placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
 	{
