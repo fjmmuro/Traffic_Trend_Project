@@ -27,19 +27,15 @@ import java.util.Random;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
-import com.jom.DoubleMatrixND;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
-import com.net2plan.utils.Pair;
 import com.net2plan.utils.RandomUtils;
 import com.net2plan.utils.Triple;
 
-import cern.colt.matrix.tdouble.DoubleFactory2D;
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
 public class TrafficTrendUtils 
 {
-	public static double [] zipfDitribution = null;
 	
 	private int C,S,A,U;
 	
@@ -47,14 +43,16 @@ public class TrafficTrendUtils
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
 	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Beta values for each service
 	
+	public static double [] zipfDitribution = null;
+	
 	double[] trafficInPreivousYearWhenADCWasCreated;
+	Boolean[] isModifiedCDN;
 	private Random rand;
 	
-	DoubleMatrix2D xas = DoubleFactory2D.dense.make(A,S);
-	List<List<Node>> cdnNodes_c = new ArrayList<>();
-//	List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>(); // for each app, CDN and content unit, the places where it is available
+	private List<List<Node>> cdnNodes_c = new ArrayList<>();
 	private List<Triple<Double, Double,Double>> services = new ArrayList<>();
 	private List<Triple<Double, Integer, int[]>> apps = new ArrayList<>();
+	private List<List<List<List<Node>>>> lastYearReplicaPlacements = new ArrayList<>();	
 	
 	public TrafficTrendUtils (int C,int S,int A,int U,Random rand)
 	{		
@@ -65,9 +63,13 @@ public class TrafficTrendUtils
 		this.U = U;
 		
 		this.trafficInPreivousYearWhenADCWasCreated = new double[C];
+		this.isModifiedCDN = new Boolean[C];
 		
 		for(int c = 0; c < C; c++)
+		{
 			trafficInPreivousYearWhenADCWasCreated[c] = 0;
+			isModifiedCDN[c] = false;
+		}
 		
 		TrafficTrendUtils.updateZipfDistributionValues(U);
 	}
@@ -82,8 +84,10 @@ public class TrafficTrendUtils
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));
+			this.isModifiedCDN[c] = true;
 		}		
 		this.cdnNodes_c = res;
+		
 		return this.cdnNodes_c;
 	}
 	
@@ -200,11 +204,12 @@ public class TrafficTrendUtils
 				
 				if(chosenNode == null) throw new RuntimeException("Chosen Node = null");
 				this.cdnNodes_c.get(c).add(chosenNode);
-				
 			}
 			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
+			this.isModifiedCDN[c] = true;
 		}		
 		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
+		
 		
 		return  numberOfNewDCs;
 	}
@@ -232,32 +237,48 @@ public class TrafficTrendUtils
 	{
 		
 		List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>();
-		
+		int a = 0;
 		for(Triple<Double, Integer, int[]> apps : this.apps)
 		{
 			List<List<List<Node>>> replicaPlacementsThisApp = new ArrayList<>();
 			int[] cdnsThisApp = apps.getThird();
 			for(int c = 0; c < cdnsThisApp.length; c++)
-			{
-				List<Node> cdnDCs = this.cdnNodes_c.get(cdnsThisApp[c]);
-				List<List<Node>> replicaPlacesThisCDNAllCUs = new ArrayList<>();
-				final int cdnNumDCs = cdnDCs.size();
-				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
+			{			
 				
-				Pair<DoubleMatrix2D, DoubleMatrixND> replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCs, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
-				
-				for(int u = 0; u < U; u++)			
+				if( (lastYearReplicaPlacements.isEmpty()) || (this.isModifiedCDN[c]) )
 				{
-					List<Node> dcsThisCU = new ArrayList<>();
-					for(int d = 0; d < cdnNumDCs; d++ )
-						if(replicasPlacementsInThisCDN.getFirst().get(u, d) == 1)													
-							dcsThisCU.add(cdnDCs.get(d));
-					replicaPlacesThisCDNAllCUs.add(dcsThisCU);
-				}		
-				replicaPlacementsThisApp.add(replicaPlacesThisCDNAllCUs);			
+					List<Node> cdnDCsThisYear = this.cdnNodes_c.get(cdnsThisApp[c]);
+					List<List<Node>> replicaPlacesThisCDNAllCUs = new ArrayList<>();
+					final int cdnNumDCs = cdnDCsThisYear.size();
+					final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
+					
+//					double iniTime = (double) System.nanoTime()*1e-9;
+					DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
+//					double endTIme = (double) System.nanoTime()*1e-9;
+//					double ilpTime = endTIme-iniTime;
+//					System.out.println("ILP Run time: " + ilpTime);
+					
+					
+					for(int u = 0; u < U; u++)			
+					{
+						List<Node> dcsThisCU = new ArrayList<>();
+						for(int d = 0; d < cdnNumDCs; d++ )
+							if(replicasPlacementsInThisCDN.get(u, d) == 1)													
+								dcsThisCU.add(cdnDCsThisYear.get(d));	
+						replicaPlacesThisCDNAllCUs.add(dcsThisCU);
+					}		
+					replicaPlacementsThisApp.add(replicaPlacesThisCDNAllCUs);		
+				}
+				else				
+					replicaPlacementsThisApp.add(lastYearReplicaPlacements.get(a).get(c));								
 			}
 			replicaPlacements_acu.add(replicaPlacementsThisApp);
-		}
+			a++;
+		}		
+		for(int c = 0; c < C; c++)
+			this.isModifiedCDN[c] = false;
+		this.lastYearReplicaPlacements = replicaPlacements_acu;
+		
 		return replicaPlacements_acu;
 	}
 	

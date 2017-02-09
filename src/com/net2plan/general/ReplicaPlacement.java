@@ -8,7 +8,6 @@ import com.jom.OptimizationProblem;
 import com.net2plan.interfaces.networkDesign.Net2PlanException;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
-import com.net2plan.utils.Pair;
 
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
@@ -23,7 +22,7 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 public class ReplicaPlacement 
 {	
 	
-	public static Pair<DoubleMatrix2D,DoubleMatrixND> placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
+	public static DoubleMatrix2D placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
 	{
 
 		/* Create the optimization problem object (JOM library) */
@@ -71,7 +70,7 @@ public class ReplicaPlacement
 		op.addConstraint("sum(r_ud,1) <= CAPACITYDC"); 			// no DC is oversubscribed
 		
 		/* Call the solver to solve the problem */
-		op.solve("cplex", "solverLibraryName", "" );
+		op.solve("cplex", "solverLibraryName", "", "maxSolverTimeInSeconds", 5 );
 
 		/* If no solution is found, quit */
 		if (op.feasibleSolutionDoesNotExist()) throw new Net2PlanException("The problem has no feasible solution");
@@ -79,7 +78,6 @@ public class ReplicaPlacement
 		
 		/* Retrieve the optimum solutions */
 		DoubleMatrix2D r_ud = op.getPrimalSolution("r_ud").view2D();
-		DoubleMatrixND closest_und = op.getPrimalSolution("closest_und");
 		
 		for (int d = 0; d < numOfDCs; d ++)
 			if (r_ud.viewColumn(d).zSum() > capacityofDC) throw new RuntimeException();
@@ -98,7 +96,7 @@ public class ReplicaPlacement
 //			res = "";
 //		}
 		
-		return new Pair<DoubleMatrix2D, DoubleMatrixND>(r_ud,closest_und, false);
+		return r_ud;
 	}
 	
 	

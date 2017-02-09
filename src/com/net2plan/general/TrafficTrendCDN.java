@@ -48,7 +48,7 @@ public class TrafficTrendCDN implements IAlgorithm
 	private InputParameter U = new InputParameter("U", (int) 100, "Number of Content Units");
 	private InputParameter avNumReplicasPerContentUnit = new InputParameter("avNumReplicasPerContentUnit", (double) 2, "Average number of replicas of a content unit");
 	private InputParameter rngSeed = new InputParameter("rngSeed", (long) 0, "The seed for the random numbers generator");
-	private InputParameter debugMode = new InputParameter("debug Mode", (boolean) true, "Set up true if debug mode");
+	private InputParameter debugMode = new InputParameter("debugMode", (boolean) true, "Set up true if debug mode");
 
 	private TimeTrace stat_averageRTTPerService_s = new TimeTrace();
 	private TimeTrace stat_numberOfNewDCCreatedEachYear = new TimeTrace();
@@ -169,6 +169,7 @@ public class TrafficTrendCDN implements IAlgorithm
 					{
 						// D2C Traffic Matrices
 						List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
+						final int numDCsWithReplicasWithoutOrigin = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
 						final DoubleMatrix2D traffMatrixAppCDN = DoubleFactory2D.dense.make(N,N);
 												
 						for(Node n1 : originalnetPlan.getNodes())				
@@ -198,24 +199,22 @@ public class TrafficTrendCDN implements IAlgorithm
 
 							/* 80% of traffic goes to closest replica */
 							stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += 0.8 * traffic * numHops_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());
-							propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += 0.8 * traffic * rtt_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());
-							
-							/* 20% of traffic is spread randomly among all the DCs in the CDN */
-							final int numDCsWithReplicas = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
-
+							propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += 0.8 * traffic * rtt_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());							
+													
+							/* 20% of traffic is spread randomly among all the DCs in the CDN */	
 							for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
 							{
 								if (n.getIndex() != closestReplicaNode.getIndex())
 								{
-									stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas)  * traffic * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
-									propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicas) * traffic * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
+									stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicasWithoutOrigin)  * traffic * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
+									propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += (0.2 / numDCsWithReplicasWithoutOrigin) * traffic * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
 								}
 							}
 						}
 
 						// D2D Traffic Matrices (InterCDN Traffic)		
 						final double Nmas = TrafficTrendUtils.zipfDitribution[u];
-						final double replicaTraffic = beta_s*h_ac*Nmas;	
+						final double replicaTraffic = beta_s*h_ac*Nmas/(double) numDCsWithReplicasWithoutOrigin;	
 	
 						// Select as origin node the one with the lower total number of hops to the rest replica placements for each content unit
 						Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();

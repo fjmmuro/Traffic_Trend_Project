@@ -7,6 +7,7 @@ java -jar Net2Plan-cli.jar --mode net-design ^
 --output-file C:\Users\Javi\OneDrive\Projects\output.n2p ^
 --alg-param A=10 ^
 --alg-param U=100 ^
+--alg-param G=2 ^
 --alg-param rngSeed=0 ^
 --alg-param sim=2 ^
 --alg-param avNumReplicasPerContentUnit=2.0 ^
