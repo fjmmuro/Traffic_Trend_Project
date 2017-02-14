@@ -22,7 +22,7 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 public class ReplicaPlacement 
 {	
 	
-	public static DoubleMatrix2D placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U)
+	public static DoubleMatrix2D placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U, String path)
 	{
 
 		/* Create the optimization problem object (JOM library) */
@@ -31,6 +31,11 @@ public class ReplicaPlacement
 		final int numOfDCs = dataCentersThisCDNThisApp.size();
 		final int N = netPlan.getNumberOfNodes();
 		final int capacityofDC = (int) Math.ceil(totalNumberOfReplicasToDistribute / (double) numOfDCs);
+		
+		int solverTime = 5;
+		if (N > 20)
+			solverTime = 150;
+		
 		/* Set some input parameters */
 				
 		double[][][] rtt_und = new double[U][N][numOfDCs];
@@ -70,7 +75,7 @@ public class ReplicaPlacement
 		op.addConstraint("sum(r_ud,1) <= CAPACITYDC"); 			// no DC is oversubscribed
 		
 		/* Call the solver to solve the problem */
-		op.solve("cplex", "solverLibraryName", "", "maxSolverTimeInSeconds", 5 );
+		op.solve("cplex", "solverLibraryName", path, "maxSolverTimeInSeconds", solverTime );
 
 		/* If no solution is found, quit */
 		if (op.feasibleSolutionDoesNotExist()) throw new Net2PlanException("The problem has no feasible solution");

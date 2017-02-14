@@ -233,7 +233,7 @@ public class TrafficTrendUtils
 			zipfDitribution [i] = x_u[i]/total;	
 	}
 	
-	public List<List<List<List<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D rtt_n1n2 , double [] population_n)
+	public List<List<List<List<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D rtt_n1n2 , double [] population_n, String path)
 	{
 		
 		List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>();
@@ -253,7 +253,7 @@ public class TrafficTrendUtils
 					final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 					
 //					double iniTime = (double) System.nanoTime()*1e-9;
-					DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U); 
+					DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U, path); 
 //					double endTIme = (double) System.nanoTime()*1e-9;
 //					double ilpTime = endTIme-iniTime;
 //					System.out.println("ILP Run time: " + ilpTime);
@@ -284,7 +284,7 @@ public class TrafficTrendUtils
 	
 	
 	// This method set the node population
-		public void setNodePopulation(NetPlan netPlan)
+		public static void setNodePopulation(NetPlan netPlan)
 		{
 			for(Node n : netPlan.getNodes())
 			{
