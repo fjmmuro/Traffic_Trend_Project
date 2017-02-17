@@ -38,11 +38,11 @@ public class TrafficTrendUtils
 {
 	
 	private int C,S,A,U;
-	
+
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
-	private double[] beta = {0.1,0.5,1,0.9,0.1};			// Beta values for each service
-	
+	private double[] beta = {0.1/3,0.5/3,1/3,0.9/3,0.1/3};			// Beta values for each service
+
 	public static double [] zipfDitribution = null;
 	
 	double[] trafficInPreivousYearWhenADCWasCreated;
@@ -80,7 +80,7 @@ public class TrafficTrendUtils
 		final List<List<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			final int numNodes = 3;	
+			final int numNodes = 3;
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));
@@ -94,7 +94,7 @@ public class TrafficTrendUtils
 	// Function to generate the services randomly (x_s,cagr)
 	public List<Triple<Double, Double,Double>> getServices()
 	{
-		for(int s = 0; s< S; s++)		
+		for(int s = 0; s< S; s++)
 			this.services.add(new Triple<Double, Double,Double>(this.x_s[s], this.cagr[s], this.beta[s], false));
 				
 		return this.services;
@@ -105,7 +105,7 @@ public class TrafficTrendUtils
 	public List<Triple<Double,Integer,int[]>> getApps()
 	{
 		List<Integer> appServiceIndex = generateServicePerApp();
-		List<Integer> shuffleCDNs = new ArrayList<Integer>();
+		List<Integer> shuffleCDNs = new ArrayList<>();
 		for(int c = 0; c < C; c++)
 			shuffleCDNs.add(c);
 		
@@ -209,7 +209,7 @@ public class TrafficTrendUtils
 			this.isModifiedCDN[c] = true;
 		}		
 		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
-		
+
 		
 		return  numberOfNewDCs;
 	}

@@ -32,7 +32,7 @@ public class ReplicaPlacement
 		final int N = netPlan.getNumberOfNodes();
 		final int capacityofDC = (int) Math.ceil(totalNumberOfReplicasToDistribute / (double) numOfDCs);
 		
-		int solverTime = 5;
+		int solverTime = 60;
 		if (N > 20)
 			solverTime = 150;
 		
@@ -41,7 +41,7 @@ public class ReplicaPlacement
 		double[][][] rtt_und = new double[U][N][numOfDCs];
 		double[][][] popularity_und = new double[U][N][numOfDCs];
 		double[][][] population_und = new double[U][N][numOfDCs];
-		
+
 		for(int u = 0; u < U; u++)		
 			for (int n = 0; n < N; n ++)			
 				for (int d = 0; d < numOfDCs; d++) 	
@@ -92,7 +92,7 @@ public class ReplicaPlacement
 		
 //		System.out.println("  ");
 //		String res = "";
-//		for(int u = 0; u < U; u++)	
+//		for(int u = 0; u < U; u++)
 //		{
 //			res += "";
 //			for (int d = 0; d < numOfDCs; d++)
