@@ -48,7 +48,7 @@ public class TrafficTrendCDN implements IAlgorithm
 	private InputParameter rngSeed = new InputParameter("rngSeed", (long) 0, "The seed for the random numbers generator");
 	private InputParameter debugMode = new InputParameter("debugMode", (boolean) true, "Set up true if debug mode");
     private InputParameter portionDCClosestInUserTraffic = new InputParameter("portionDCClosestInUserTraffic", (double) 0.8, "Proportion of the User Traffic that goes to the closest node");
-    private InputParameter ilpMode = new InputParameter("ilpMode", "#select rttAware hopsAware", "Select the mode to solve the replica placement ILP" );
+    private InputParameter ilpMode = new InputParameter("ilpMode", "#select# rttAware hopsAware", "Select the mode to solve the replica placement ILP" );
 
 	private TimeTrace stat_averageRTTPerService_s = new TimeTrace();
 	private TimeTrace stat_numberOfNewDCCreatedEachYear = new TimeTrace();
@@ -240,9 +240,9 @@ public class TrafficTrendCDN implements IAlgorithm
 								cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, multLinks);
 //								System.out.println("CU: " + u + " Destination Nodes size: " + destinationNodes.size());
 							}
+							stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
+							stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
 						}
-						stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
-						stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
 					}		
 				}
 				appIndex++;
@@ -259,9 +259,8 @@ public class TrafficTrendCDN implements IAlgorithm
 
 			int newDC = 0;	
 			// Update Data Center Locations
-			if(G.getDouble() > 0)
-                for(int c = 0; c < C; c++)
-                    newDC += appAndCDNInfo.addDcIntoCDN(netPlan, c, G.getDouble(),traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(c));
+			for(int c = 0; c < C; c++)
+				newDC += appAndCDNInfo.addDcIntoCDN(netPlan, c, G.getDouble(),traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(c));
 
 			stat_numberOfNewDCCreatedEachYear.add(y+1,newDC);
 			
@@ -289,7 +288,7 @@ public class TrafficTrendCDN implements IAlgorithm
 		}
 					
 		String root;
-		if (isLocal.getBoolean()) root = "C:/Users/javie/OneDrive/Projects/Proyecto Trend CDN/Results/Local/beta38020/";
+		if (isLocal.getBoolean()) root = "C:/Users/javie/OneDrive/Projects/Proyecto Trend CDN/Results/Results/";
 		else root = "../trendTraffic/Results/";
 		
 		String gString = Double.toString(G.getDouble());
@@ -338,7 +337,7 @@ public class TrafficTrendCDN implements IAlgorithm
 
 		final double telecoTelcoTraffic = H_TelcoTelco;
 		final DoubleMatrix2D initialTraffMatrixTelcoTelco = TrafficMatrixGenerationModels.normalizationPattern_totalTraffic(traffMatrixTelcoTelco, telecoTelcoTraffic);
-		final DoubleMatrix2D initialTrafficInLinksTelcoTelco = initialTraffMatrixTelcoTelco.assign(numHops_n1n2 , DoubleFunctions.mult);
+		final DoubleMatrix2D initialTrafficInLinksTelcoTelco = initialTraffMatrixTelcoTelco.copy().assign(numHops_n1n2 , DoubleFunctions.mult);
 		return Pair.of(initialTraffMatrixTelcoTelco.zSum() , initialTrafficInLinksTelcoTelco.zSum());
 	}
 	
