@@ -1,4 +1,4 @@
-
+package com.net2plan.general;
 
 /* 
  * Hypothesis:
@@ -16,8 +16,6 @@
  * avNumberReplicasInCDN = 100 * XXX => beta = 100 * XXX => alpha = 100 * XXX /  numDCsOfCDN
  * 
  * */
-
-
 
 import java.util.ArrayList;
 import java.util.Collections;

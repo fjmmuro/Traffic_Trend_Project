@@ -1,4 +1,4 @@
-
+package com.net2plan.general;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -48,6 +48,7 @@ public class TrafficTrendCDN implements IAlgorithm
 	private InputParameter rngSeed = new InputParameter("rngSeed", (long) 0, "The seed for the random numbers generator");
 	private InputParameter debugMode = new InputParameter("debugMode", (boolean) true, "Set up true if debug mode");
     private InputParameter portionDCClosestInUserTraffic = new InputParameter("portionDCClosestInUserTraffic", (double) 0.8, "Proportion of the User Traffic that goes to the closest node");
+    private InputParameter ilpMode = new InputParameter("ilpMode", "#select rttAware hopsAware", "Select the mode to solve the replica placement ILP" );
 
 	private TimeTrace stat_averageRTTPerService_s = new TimeTrace();
 	private TimeTrace stat_numberOfNewDCCreatedEachYear = new TimeTrace();
@@ -124,7 +125,7 @@ public class TrafficTrendCDN implements IAlgorithm
 		final DoubleMatrix1D linkCost = DoubleFactory1D.dense.make(E,1);
 		
 		final Map<Pair<Node,Node>,List<List<Link>>> cpl = netPlan.computeUnicastCandidatePathList (null , 1, -1, -1, -1, -1,-1, -1, null);
-		final Map<Set<Node>,Integer> cplMulticast = new HashMap<> (); // number of links of the tree
+		final Map<List<Node>,Set<Link>> cplMulticast = new HashMap<> (); // number of links of the tree
 		final DoubleMatrix2D rtt_n1n2 = DoubleFactory2D.dense.make(N,N);
 		final DoubleMatrix2D numHops_n1n2 = DoubleFactory2D.dense.make(N,N);
 		for (Pair<Node,Node> n1n2 : cpl.keySet())
@@ -134,8 +135,13 @@ public class TrafficTrendCDN implements IAlgorithm
 			rtt_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , rtt);
 			numHops_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , seqLinks.size());
 		}
-		//List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector, path);
-		List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path);
+
+		DoubleMatrix2D ilpCostn1n2 = rtt_n1n2;
+
+		if (!ilpMode.getString().equalsIgnoreCase("rttAware"))
+			ilpCostn1n2 = numHops_n1n2.copy();
+
+		List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , ilpCostn1n2 , populationWeightVector, path);
 
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (netPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco , numHops_n1n2);
 
@@ -171,7 +177,7 @@ public class TrafficTrendCDN implements IAlgorithm
 					for (int u=0; u < U; u++)					
 					{
 						// D2C Traffic Matrices
-						final Set<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = new HashSet<> (replicaPlacements.get(appIndex).get(c).get(u));
+						final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
 						final int numDCsWithReplicasWithoutOrigin = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
 						final DoubleMatrix1D traffCreatedPerNodeThisCDNAppUnit_n = DoubleFactory1D.dense.make(populationWeightVector);
 												
@@ -218,18 +224,25 @@ public class TrafficTrendCDN implements IAlgorithm
 						// D2D Traffic Matrices (InterCDN Traffic)		
 
 						final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s*h_ac*popularityThisContentUnit;
-						Integer numLinksMulitcastTree  = cplMulticast.get(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
-						if (numLinksMulitcastTree == null)
+						final Set<Node> destinationNodes = new HashSet<> (nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
+						final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
+						destinationNodes.remove(originNodeForMulticast);
+
+						Set<Link> multLinks = cplMulticast.get(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
+
+						if(!destinationNodes.isEmpty())
 						{
-							final Node originNode = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
-							final Set<Node> destinationNodes = Sets.difference(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, Sets.newHashSet(originNode));
-							final Set<Link> multLinks = GraphUtils.getMinimumCostMulticastTree(netPlan.getLinks(), netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
-								linkCost, originNode, destinationNodes, -1, -1, -1, -1, "cplex", path , 10);
-							cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN , multLinks.size());
-							numLinksMulitcastTree = multLinks.size();
-  						}
+
+							if (multLinks == null)
+							{
+								multLinks = GraphUtils.getMinimumCostMulticastTree(netPlan.getLinks(), netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
+										linkCost, originNodeForMulticast, destinationNodes, -1, -1, -1, -1, "cplex", path, 10);
+								cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, multLinks);
+//								System.out.println("CU: " + u + " Destination Nodes size: " + destinationNodes.size());
+							}
+						}
 						stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
-						stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * numLinksMulitcastTree;						
+						stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
 					}		
 				}
 				appIndex++;
