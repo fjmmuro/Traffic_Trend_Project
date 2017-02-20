@@ -1,5 +1,4 @@
 
-package com.net2plan.general;
 
 import java.util.List;
 
@@ -22,7 +21,7 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 public class ReplicaPlacement 
 {	
 	
-	public static DoubleMatrix2D placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D rtt_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U, String path)
+	public static DoubleMatrix2D placeReplicas (NetPlan netPlan, List<Node> dataCentersThisCDNThisApp , DoubleMatrix2D cost_n1n2, int totalNumberOfReplicasToDistribute, double [] popularity, double [] population_n , int U, String path)
 	{
 
 		/* Create the optimization problem object (JOM library) */
@@ -38,7 +37,7 @@ public class ReplicaPlacement
 		
 		/* Set some input parameters */
 				
-		double[][][] rtt_und = new double[U][N][numOfDCs];
+		double[][][] cost_und = new double[U][N][numOfDCs];
 		double[][][] popularity_und = new double[U][N][numOfDCs];
 		double[][][] population_und = new double[U][N][numOfDCs];
 
@@ -48,11 +47,11 @@ public class ReplicaPlacement
 				{
 					popularity_und[u][n][d] = popularity[u];
 					population_und[u][n][d] = population_n[n];
-					rtt_und[u][n][d] = rtt_n1n2.get(n, dataCentersThisCDNThisApp.get(d).getIndex());
+					cost_und[u][n][d] = cost_n1n2.get(n, dataCentersThisCDNThisApp.get(d).getIndex());
 				}			
 				
 		op.setInputParameter("R", totalNumberOfReplicasToDistribute);
-		op.setInputParameter("rtt_und", new DoubleMatrixND(rtt_und)); 												// mean RTT to the DC d from the rest of the network
+		op.setInputParameter("cost_und", new DoubleMatrixND(cost_und)); 												// mean RTT to the DC d from the rest of the network
 		op.setInputParameter("population_und", new DoubleMatrixND(population_und));			// Popularity of the content units
 		op.setInputParameter("popularity_und", new DoubleMatrixND(popularity_und));			// Popularity of the content units
 		op.setInputParameter("CAPACITYDC", capacityofDC);			// Popularity of the content units
@@ -62,7 +61,7 @@ public class ReplicaPlacement
 		op.addDecisionVariable("closest_und", true, new int[] { U, N , numOfDCs }, 0, 1); // 1 if for cu u, the DC d is the closest to user in node n
 
 		/* Sets the objective function */
-		op.setObjectiveFunction("minimize", "sum (popularity_und .* population_und .* closest_und .* rtt_und ) ");
+		op.setObjectiveFunction("minimize", "sum (popularity_und .* population_und .* closest_und .* cost_und ) "); 
 
 		/* Constraints */
 		op.addConstraint("sum(closest_und,3) == 1");

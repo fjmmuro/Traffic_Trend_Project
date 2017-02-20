@@ -1,4 +1,4 @@
-package com.net2plan.general;
+
 
 /* 
  * Hypothesis:
@@ -32,6 +32,7 @@ import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.utils.RandomUtils;
 import com.net2plan.utils.Triple;
 
+import cern.colt.matrix.tdouble.DoubleMatrix1D;
 import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
 public class TrafficTrendUtils 
@@ -164,16 +165,16 @@ public class TrafficTrendUtils
 		return indexAppInService;				
 	}
 	
-	public int addDcIntoCDN(NetPlan netPlan, int c, double G, DoubleMatrix2D trafficMatrix)
+	public int addDcIntoCDN(NetPlan netPlan, int c, double G, DoubleMatrix1D trafficToTheCDNFromEachNode_n)
 	{
 		final List<Node> originalDCsInCDN = new ArrayList<Node> (this.cdnNodes_c.get(c)); 
 		List<Node> currentDCsInCDN = this.cdnNodes_c.get(c);
 
 		/* First time passes */
-		if (this.trafficInPreivousYearWhenADCWasCreated[c] == 0) this.trafficInPreivousYearWhenADCWasCreated[c] =  trafficMatrix.zSum();
+		if (this.trafficInPreivousYearWhenADCWasCreated[c] == 0) this.trafficInPreivousYearWhenADCWasCreated[c] =  trafficToTheCDNFromEachNode_n.zSum();
 
 		double intialCDNsTraffic = this.trafficInPreivousYearWhenADCWasCreated[c];
-		double currentCDNTraffic = trafficMatrix.zSum();
+		double currentCDNTraffic = trafficToTheCDNFromEachNode_n.zSum();
 		
 		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);			
 		final int N = netPlan.getNumberOfNodes();
@@ -191,7 +192,7 @@ public class TrafficTrendUtils
 					double bestTraffic = -Double.MAX_VALUE;
 					for (Node candidate : placementCandidates)
 					{
-						final double nodeTraffic = trafficMatrix.viewColumn(candidate.getIndex()).zSum() + trafficMatrix.viewRow(candidate.getIndex()).zSum();   
+						final double nodeTraffic = trafficToTheCDNFromEachNode_n.get(candidate.getIndex());   
 						if (nodeTraffic > bestTraffic)
 						{
 							bestTraffic = nodeTraffic;
@@ -233,7 +234,7 @@ public class TrafficTrendUtils
 			zipfDitribution [i] = x_u[i]/total;	
 	}
 	
-	public List<List<List<List<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D rtt_n1n2 , double [] population_n, String path)
+	public List<List<List<List<Node>>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path)
 	{
 		
 		List<List<List<List<Node>>>> replicaPlacements_acu = new ArrayList<>();
@@ -253,7 +254,7 @@ public class TrafficTrendUtils
 					final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 					
 //					double iniTime = (double) System.nanoTime()*1e-9;
-					DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, rtt_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U, path); 
+					DoubleMatrix2D replicasPlacementsInThisCDN = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, maximumNumberReplicasInEachDCEachApp, zipfDitribution,population_n , U, path); 
 //					double endTIme = (double) System.nanoTime()*1e-9;
 //					double ilpTime = endTIme-iniTime;
 //					System.out.println("ILP Run time: " + ilpTime);
