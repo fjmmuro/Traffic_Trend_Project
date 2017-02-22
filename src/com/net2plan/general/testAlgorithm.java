@@ -135,25 +135,21 @@ public class testAlgorithm implements IAlgorithm
 			rtt_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , rtt);
 			numHops_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , seqLinks.size());
 		}
-		List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector, path);
+		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector, path);
 
 		int app = 0;
-		for(List<List<List<Node>>> replicasThisApp : replicaPlacements)
+		for(List<List<Node>> replicasThisCDN : replicaPlacements)
 		{
 		    int thisCdn = 0;
             System.out.println(" ");
             System.out.println(" ---- App " + app + " ----");
-            for (List<List<Node>> replicaThisAppThisCDN : replicasThisApp)
+            for (List<Node> replicaThisAppThisCDN : replicasThisCDN)
             {
                 int cu = 0;
                 System.out.println(" ---- CDN " + thisCdn + " ----");
-                for(List<Node> replicasThisCU : replicaThisAppThisCDN)
-                {
-                    System.out.println(" ");
-                    System.out.print(" CU " + cu + " : ");
-                    for (Node replica : replicasThisCU) System.out.print(" " + replica.getIndex());
-                    cu++;
-                }
+                for (Node replica : replicaThisAppThisCDN) System.out.print(" " + replica.getIndex());
+                cu++;
+
                 System.out.println(" ");
                 thisCdn++;
             }

@@ -1,13 +1,7 @@
 package com.net2plan.general;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 import com.google.common.collect.Sets;
 import com.net2plan.interfaces.networkDesign.Demand;
@@ -141,7 +135,7 @@ public class TrafficTrendCDN implements IAlgorithm
 		if (!ilpMode.getString().equalsIgnoreCase("rttAware"))
 			ilpCostn1n2 = numHops_n1n2.copy();
 
-		List<List<List<List<Node>>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , ilpCostn1n2 , populationWeightVector, path);
+		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , ilpCostn1n2 , populationWeightVector, path);
 
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (netPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco , numHops_n1n2);
 
@@ -159,93 +153,94 @@ public class TrafficTrendCDN implements IAlgorithm
 			// Compute traffic per application
 			List<DoubleMatrix1D> traffMatrixThisYearIncludingSelfDemandsPerCDN_c = new ArrayList<>();
 			for (int c = 0; c < C; c++)
-				traffMatrixThisYearIncludingSelfDemandsPerCDN_c.add(c, DoubleFactory1D.dense.make(N));			
-			
-			int appIndex = 0;
-			for (Triple<Double,Integer, int[]> app : appInfo)
+				traffMatrixThisYearIncludingSelfDemandsPerCDN_c.add(c, DoubleFactory1D.dense.make(N));
+
+			for (int c=0; c < C; c ++)
 			{
-				final double proportionOfThisAppRespectToAll = app.getFirst();
-				final int appService = app.getSecond();																				// Type of service of the app
-				final double cagr_service = servicesInfo.get(appService).getSecond();
-				final double beta_s = servicesInfo.get(appService).getThird();
-				final double appTraffic = H_D2C*proportionOfThisAppRespectToAll*Math.pow((1+cagr_service),y);
-				final int[] indexesOfCDNsForThisApplication = app.getThird();												      	// List of CDNs where the app can carry the traffic
-				final double h_ac = appTraffic/(double) indexesOfCDNsForThisApplication.length;										// Traffic per each CDN for the app
-				
-				for (int c=0; c < indexesOfCDNsForThisApplication.length; c ++)
+				int appIndex = 0;
+
+				for (Triple<Double,Integer, int[]> app : appInfo)
 				{
-					for (int u=0; u < U; u++)					
+					Collection cdnThisApp = new ArrayList<Integer>();
+					for(int cdn = 0; cdn < app.getThird().length; cdn++) cdnThisApp.add(app.getThird()[c]);
+
+					if (cdnThisApp.contains(c))
 					{
-						// D2C Traffic Matrices
-						final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(appIndex).get(c).get(u);
-						final int numDCsWithReplicasWithoutOrigin = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size()-1;
-						final DoubleMatrix1D traffCreatedPerNodeThisCDNAppUnit_n = DoubleFactory1D.dense.make(populationWeightVector);
-												
-						final double sum_traffMatrixAppCDN = traffCreatedPerNodeThisCDNAppUnit_n.zSum();
-                        final double popularityThisContentUnit = TrafficTrendUtils.zipfDitribution[u];
-                        final double normalizationFactor = h_ac*popularityThisContentUnit / sum_traffMatrixAppCDN;
-						final DoubleMatrix1D normalizedTrafficMatrixThisCDNAppUnit_n = traffCreatedPerNodeThisCDNAppUnit_n.assign(DoubleFunctions.mult(normalizationFactor));
+						final double proportionOfThisAppRespectToAll = app.getFirst();
+						final int appService = app.getSecond();                                                                                // Type of service of the app
+						final double cagr_service = servicesInfo.get(appService).getSecond();
+						final double beta_s = servicesInfo.get(appService).getThird();
+						final double appTraffic = H_D2C * proportionOfThisAppRespectToAll * Math.pow((1 + cagr_service), y);
+						final int[] indexesOfCDNsForThisApplication = app.getThird();                                                        // List of CDNs where the app can carry the traffic
+						final double h_ac = appTraffic / (double) indexesOfCDNsForThisApplication.length;                                        // Traffic per each CDN for the app
 
-						traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[c]).assign(normalizedTrafficMatrixThisCDNAppUnit_n,DoubleFunctions.plus);
+						for (int u = appIndex; u < appIndex * U; u++) {
+							// D2C Traffic Matrices
+							final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(c).get(u);
+							final int numDCsWithReplicasWithoutOrigin = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size() - 1;
+							final DoubleMatrix1D traffCreatedPerNodeThisCDNAppUnit_n = DoubleFactory1D.dense.make(populationWeightVector);
 
-						/* sum the diagonal: this is offered traffic does not appear as demands */
+							final double sum_traffMatrixAppCDN = traffCreatedPerNodeThisCDNAppUnit_n.zSum();
+							final double popularityThisContentUnit = TrafficTrendUtils.zipfDitribution[u];
+							final double normalizationFactor = h_ac * popularityThisContentUnit / sum_traffMatrixAppCDN;
+							final DoubleMatrix1D normalizedTrafficMatrixThisCDNAppUnit_n = traffCreatedPerNodeThisCDNAppUnit_n.assign(DoubleFunctions.mult(normalizationFactor));
 
-						stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s[appService] += normalizedTrafficMatrixThisCDNAppUnit_n.zSum();
+							traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[c]).assign(normalizedTrafficMatrixThisCDNAppUnit_n, DoubleFunctions.plus);
 
-						/* The traffic goes 80% to the closest replica, and 20% spread among all (including closest replica) */
-						for (Node userNode : netPlan.getNodes ())
-						{
-							Node closestReplicaNode = null;
-							int minNumHops = Integer.MAX_VALUE;
-							for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
-								if (numHops_n1n2.get(userNode.getIndex() , n.getIndex()) < minNumHops)
-								{
-									closestReplicaNode = n; 
-									minNumHops = (int) numHops_n1n2.get(userNode.getIndex() , n.getIndex()); 
-								}
-							
-							final double trafficUserToDC = normalizedTrafficMatrixThisCDNAppUnit_n.get(userNode.getIndex());
+							/* sum the diagonal: this is offered traffic does not appear as demands */
 
-							/* 80% of traffic goes to closest replica */
-							stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * numHops_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());
-							propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * rtt_n1n2.get(userNode.getIndex() , closestReplicaNode.getIndex());
-													
-							/* 20% of traffic is spread randomly among all the DCs in the CDN */	
-							for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
-							{
-								if (n.getIndex() != closestReplicaNode.getIndex())
-								{
-									stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += ((1-portionDCClosestInUserTraffic) / numDCsWithReplicasWithoutOrigin)  * trafficUserToDC * numHops_n1n2.get(userNode.getIndex() , n.getIndex());
-									propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += ((1-portionDCClosestInUserTraffic) / numDCsWithReplicasWithoutOrigin) * trafficUserToDC * rtt_n1n2.get(userNode.getIndex() , n.getIndex());
+							stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s[appService] += normalizedTrafficMatrixThisCDNAppUnit_n.zSum();
+
+							/* The traffic goes 80% to the closest replica, and 20% spread among all (including closest replica) */
+							for (Node userNode : netPlan.getNodes()) {
+								Node closestReplicaNode = null;
+								int minNumHops = Integer.MAX_VALUE;
+								for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
+									if (numHops_n1n2.get(userNode.getIndex(), n.getIndex()) < minNumHops) {
+										closestReplicaNode = n;
+										minNumHops = (int) numHops_n1n2.get(userNode.getIndex(), n.getIndex());
+									}
+
+								final double trafficUserToDC = normalizedTrafficMatrixThisCDNAppUnit_n.get(userNode.getIndex());
+
+								/* 80% of traffic goes to closest replica */
+								stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * numHops_n1n2.get(userNode.getIndex(), closestReplicaNode.getIndex());
+								propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * rtt_n1n2.get(userNode.getIndex(), closestReplicaNode.getIndex());
+
+								/* 20% of traffic is spread randomly among all the DCs in the CDN */
+								for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN) {
+									if (n.getIndex() != closestReplicaNode.getIndex()) {
+										stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += ((1 - portionDCClosestInUserTraffic) / numDCsWithReplicasWithoutOrigin) * trafficUserToDC * numHops_n1n2.get(userNode.getIndex(), n.getIndex());
+										propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += ((1 - portionDCClosestInUserTraffic) / numDCsWithReplicasWithoutOrigin) * trafficUserToDC * rtt_n1n2.get(userNode.getIndex(), n.getIndex());
+									}
 								}
 							}
-						}
 
-						// D2D Traffic Matrices (InterCDN Traffic)		
+							// D2D Traffic Matrices (InterCDN Traffic)
 
-						final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s*h_ac*popularityThisContentUnit;
-						final Set<Node> destinationNodes = new HashSet<> (nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
-						final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
-						destinationNodes.remove(originNodeForMulticast);
+							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * h_ac * popularityThisContentUnit;
+							final Set<Node> destinationNodes = new HashSet<>(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
+							final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
+							destinationNodes.remove(originNodeForMulticast);
 
-						Set<Link> multLinks = cplMulticast.get(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
+							Set<Link> multLinks = cplMulticast.get(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
 
-						if(!destinationNodes.isEmpty())
-						{
-
-							if (multLinks == null)
-							{
-								multLinks = GraphUtils.getMinimumCostMulticastTree(netPlan.getLinks(), netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
-										linkCost, originNodeForMulticast, destinationNodes, -1, -1, -1, -1, "cplex", path, 10);
-								cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, multLinks);
-//								System.out.println("CU: " + u + " Destination Nodes size: " + destinationNodes.size());
+							if (!destinationNodes.isEmpty()) {
+								if (multLinks == null) {
+									multLinks = GraphUtils.getMinimumCostMulticastTree(netPlan.getLinks(), netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
+											linkCost, originNodeForMulticast, destinationNodes, -1, -1, -1, -1, "cplex", path, 10);
+									cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, multLinks);
+									//								System.out.println("CU: " + u + " Destination Nodes size: " + destinationNodes.size());
+								}
+								stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
+								stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
 							}
-							stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
-							stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
 						}
-					}		
+						appIndex++;
+					}
+
 				}
-				appIndex++;
+
 			}
 					
 			for(int s=0; s<S; s++)			
