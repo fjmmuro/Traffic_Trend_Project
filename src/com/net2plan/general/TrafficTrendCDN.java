@@ -135,7 +135,7 @@ public class TrafficTrendCDN implements IAlgorithm
 		if (!ilpMode.getString().equalsIgnoreCase("rttAware"))
 			ilpCostn1n2 = numHops_n1n2.copy();
 
-		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , ilpCostn1n2 , populationWeightVector, path);
+		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , ilpCostn1n2 , populationWeightVector, path,true);
 
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (netPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco , numHops_n1n2);
 
@@ -261,7 +261,7 @@ public class TrafficTrendCDN implements IAlgorithm
 			
 			// If new DC are created, a new distribution of the replicas is needed
 			if(newDC > 0)
-				replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector, path);
+				replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , rtt_n1n2 , populationWeightVector, path,false);
 		
 			if(debugMode.getBoolean())
 			{

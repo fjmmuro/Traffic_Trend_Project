@@ -42,9 +42,11 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
+	private double f = 500.0;
+
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
-	private double[] beta = {0.1/3,0.5/3,1/3,0.9/3,0.1/3};			// Beta values for each service
+	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
 
 	public static double [] zipfDitribution = null;
 	
@@ -83,7 +85,7 @@ public class TrafficTrendUtils
 		final List<List<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			final int numNodes = 3;
+			final int numNodes = 6;
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));
@@ -236,29 +238,33 @@ public class TrafficTrendUtils
 			zipfDitribution [i] = x_u[i]/total;	
 	}
 	
-	public List<List<List<Node>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path)
+	public List<List<List<Node>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path, boolean isFirstTime)
 	{
 		
 		List<List<List<Node>>> replicaPlacementsAllCDNs = new ArrayList<>();
 
 		for(int c = 0; c < C; c++)
 		{
-			final DoubleMatrix1D h_a = DoubleFactory1D.dense.make(A,0.0);
-			final DoubleMatrix1D beta_a = DoubleFactory1D.dense.make(A,0.0);
+
+
+			List<Triple<Double, Integer, int[]>> appsThisCDN = new ArrayList<>();
+
+			for(Triple<Double, Integer, int[]> app : this.apps)
+				for (int cdn = 0; cdn < app.getThird().length; cdn++)
+					if (app.getThird()[cdn] == c)
+						appsThisCDN.add(app);
+
+			int numAppThisCDN = appsThisCDN.size();
+			final DoubleMatrix1D h_a = DoubleFactory1D.dense.make(numAppThisCDN);
+			final DoubleMatrix1D beta_a = DoubleFactory1D.dense.make(numAppThisCDN);
 
 			int a = 0;
-			for(Triple<Double, Integer, int[]> app : this.apps)
+			for(Triple<Double, Integer, int[]> app : appsThisCDN)
 			{
-				for (int cdn = 0; cdn < app.getThird().length; cdn++)
-				{
-					if (app.getThird()[cdn] == c)
-					{
-						final double appTraffic = app.getFirst();
-						final double appBeta = services.get(app.getSecond()).getThird();
-						h_a.set(a,appTraffic);
-						beta_a.set(a,appBeta);
-					}
-				}
+				final double appTraffic = app.getFirst() / (double) app.getThird().length;
+				final double appBeta = services.get(app.getSecond()).getThird();
+				h_a.set(a, appTraffic);
+				beta_a.set(a, appBeta);
 				a++;
 			}
 
@@ -270,15 +276,14 @@ public class TrafficTrendUtils
 				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 
 	//					double iniTime = (double) System.nanoTime()*1e-9;
-				Pair<DoubleMatrix2D,List<Node>> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path);
+				Pair<DoubleMatrix2D,List<Node>> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
 				DoubleMatrix2D replicasPlacementsInThisCDN = dcsAndReplicaPlacement.getFirst();
-				this.cdnNodes_c.get(c).add(dcsAndReplicaPlacement.getSecond().get(cdnNumDCs));
+				if(!isFirstTime) this.cdnNodes_c.get(c).add(dcsAndReplicaPlacement.getSecond().get(cdnNumDCs));
 	//					double endTIme = (double) System.nanoTime()*1e-9;
 	//					double ilpTime = endTIme-iniTime;
 	//					System.out.println("ILP Run time: " + ilpTime);
 
 				for(int u = 0; u < U; u++)
-				{
 					for(int app = 0; app < h_a.size(); app++)
 					{
 						List<Node> dcsThisCU = new ArrayList<>();
@@ -287,8 +292,6 @@ public class TrafficTrendUtils
 								dcsThisCU.add(cdnDCsThisYear.get(d));
 						replicaPlacementsThisCDN.add(dcsThisCU);
 					}
-
-				}
 				replicaPlacementsAllCDNs.add(replicaPlacementsThisCDN);
 			}
 			else
