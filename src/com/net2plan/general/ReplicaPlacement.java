@@ -123,7 +123,7 @@ public class ReplicaPlacement
 					op.setInputParameter("n", n);
 					op.addConstraint("sum(closest_uand(all,n,all),2) <= r_uad "); //
 				}
-							op.addConstraint("sum(r_uad) == 2*R"); 					// we distribute all the replicas
+//							op.addConstraint("sum(r_uad) == 2*R"); 					// we distribute all the replicas
 
 				/* Call the solver to solve the problem */
 				op.solve("cplex", "solverLibraryName", path, "maxSolverTimeInSeconds", solverTime);
