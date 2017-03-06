@@ -137,23 +137,23 @@ public class testAlgorithm implements IAlgorithm
 		}
 		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path, true);
 
-		int app = 0;
-		for(List<List<Node>> replicasThisCDN : replicaPlacements)
-		{
-		    int thisCdn = 0;
-            System.out.println(" ");
-            System.out.println(" ---- CDN " + thisCdn + " ----");
-            for (List<Node> replicaThisAppThisCDN : replicasThisCDN)
-            {
-                int cu = 0;
-                for (Node replica : replicaThisAppThisCDN) System.out.print(" " + replica.getIndex());
-                cu++;
-
-                System.out.println(" ");
-                thisCdn++;
-            }
-            app++;
-        }
+//		int app = 0;
+//		for(List<List<Node>> replicasThisCDN : replicaPlacements)
+//		{
+//		    int thisCdn = 0;
+//            System.out.println(" ");
+//            System.out.println(" ---- CDN " + thisCdn + " ----");
+//            for (List<Node> replicaThisAppThisCDN : replicasThisCDN)
+//            {
+//                int cu = 0;
+//                for (Node replica : replicaThisAppThisCDN) System.out.print(" " + replica.getIndex());
+//                cu++;
+//
+//                System.out.println(" ");
+//                thisCdn++;
+//            }
+//            app++;
+//        }
 
 
 		return "Ok!"; // this is the message that will be shown in the screen at the end of the algorithm

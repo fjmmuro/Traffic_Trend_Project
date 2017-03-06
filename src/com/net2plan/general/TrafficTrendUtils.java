@@ -28,6 +28,7 @@ import java.util.Set;
 
 import cern.colt.matrix.tdouble.DoubleFactory1D;
 import com.google.common.collect.Sets;
+import com.net2plan.interfaces.networkDesign.Net2PlanException;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.utils.Pair;
@@ -42,11 +43,12 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
-	private double f = 500.0;
+	private double f = 1000.0;
 
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
-	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
+//	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
+	private double[] beta = {1.0/f,1.0/f,1.0/f,1.0/f,1.0/f};			// Beta values for each service
 
 	public static double [] zipfDitribution = null;
 	
@@ -110,25 +112,27 @@ public class TrafficTrendUtils
 	public List<Triple<Double,Integer,int[]>> getApps()
 	{
 		List<Integer> appServiceIndex = generateServicePerApp();
-		List<Integer> shuffleCDNs = new ArrayList<>();
-		for(int c = 0; c < C; c++)
-			shuffleCDNs.add(c);
-		
+
 		for(int a = 0; a < A; a++)		
-		{			
+		{
+			List<Integer> shuffleCDNs = new ArrayList<>(); for (int c = 0; c < C; c++) shuffleCDNs.add(c);
 			int appService = appServiceIndex.get(a);
 			int numberofAppsPerThisService = Collections.frequency(appServiceIndex, appService);
-			int numCDNsForThisApplication = RandomUtils.random(1, 3);
+//			int numCDNsForThisApplication = RandomUtils.random(1, 3);
+			int numCDNsForThisApplication = 1;
 			Collections.shuffle(shuffleCDNs);
 			int[] indexesOfCDNsOfThisApplication = new int[numCDNsForThisApplication];
 			double x_a = x_s[appService]/(double) numberofAppsPerThisService;
-			
+
 			for (int c = 0; c < numCDNsForThisApplication; c++)
-				indexesOfCDNsOfThisApplication[c] = shuffleCDNs.get(c);
+				if (c==0)
+					indexesOfCDNsOfThisApplication[c] = a;
+				else
+					indexesOfCDNsOfThisApplication[c] = shuffleCDNs.get(c);
 
 			this.apps.add(Triple.of(x_a, appService, indexesOfCDNsOfThisApplication));
-		}		
-		
+		}
+
 		return this.apps;
 	}	
 	
@@ -214,7 +218,6 @@ public class TrafficTrendUtils
 			this.isModifiedCDN[c] = true;
 		}		
 		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
-
 		
 		return  numberOfNewDCs;
 	}
@@ -245,8 +248,6 @@ public class TrafficTrendUtils
 
 		for(int c = 0; c < C; c++)
 		{
-
-
 			List<Triple<Double, Integer, int[]>> appsThisCDN = new ArrayList<>();
 
 			for(Triple<Double, Integer, int[]> app : this.apps)
@@ -429,9 +430,6 @@ public class TrafficTrendUtils
 				}
 			}	
 		}
-		
-		
-		
 	
 }
 		

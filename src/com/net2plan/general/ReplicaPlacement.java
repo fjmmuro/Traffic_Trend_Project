@@ -1,10 +1,6 @@
 package com.net2plan.general;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import cern.colt.matrix.tdouble.impl.DenseDoubleMatrix1D;
 import com.google.common.collect.Sets;
@@ -13,6 +9,7 @@ import com.jom.OptimizationProblem;
 import com.net2plan.interfaces.networkDesign.Net2PlanException;
 import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
+import com.net2plan.utils.DoubleUtils;
 import com.net2plan.utils.Pair;
 import com.net2plan.utils.Triple;
 
@@ -72,28 +69,36 @@ public class ReplicaPlacement
 				if (N > 20)
 					solverTime = 150;
 
+//				System.out.println("----- Popularity-----------");
+//				System.out.println(Arrays.toString(popularity_u));
+
 				/* Set some input parameters */
 				double[][][] cost_uand = new double[U * A][N][numOfDCs];
 				double[][][] trafUserToDC_uand = new double[U * A][N][numOfDCs];
 				double[][] trafUserToDC_uad = new double[U * A][numOfDCs];
 				double[][] beta_uad = new double[U * A][numOfDCs];
-				double[] e_d = new double[N];
+//				double[] e_d = new double[N];
 
 				for (int u = 0; u < U; u++)
 					for (int a = 0; a < A; a++)
 						for (int n = 0; n < N; n++)
-							for (int d = 0; d < numOfDCs; d++) {
-								trafUserToDC_uand[u + a * U][n][d] = popularity_u[u] * population_n[n] * h_a.get(a);
-								beta_uad[u + a * U][d] += beta_a.get(a);
+							for (int d = 0; d < numOfDCs; d++)
+							{
+								trafUserToDC_uand[u + a * U][n][d] = popularity_u[u] * population_n[n] * h_a.get(a) / DoubleUtils.sum(population_n);
+//								beta_uad[u + a * U][d] = beta_a.get(a);
 								cost_uand[u + a * U][n][d] = cost_n1n2.get(n, dcPositions.get(d).getIndex());
-								trafUserToDC_uad[u + a * U][d] += popularity_u[u] * population_n[n] * h_a.get(a);
+								trafUserToDC_uad[u + a * U][d] = popularity_u[u] * h_a.get(a) * beta_a.get(a);
+//                                trafUserToDC_uad[u + a * U][d] = popularity_u[u] * population_n[n] * h_a.get(a);
 							}
+
+				System.out.println("A : " + A);
 
 	//			op.setInputParameter("R", totalNumberOfReplicasToDistribute);
 				op.setInputParameter("cost_uand", new DoubleMatrixND(cost_uand));                                                // mean RTT to the DC d from the rest of the network
 				op.setInputParameter("trafUserToDC_uand", new DoubleMatrixND(trafUserToDC_uand));            // Popularity of the content units
 				op.setInputParameter("trafUserToDC_uad", new DoubleMatrixND(trafUserToDC_uad));            // Popularity of the content units
-				op.setInputParameter("beta_uad", new DoubleMatrixND(beta_uad));           				 // Popularity of the content units
+//				op.setInputParameter("beta_uad", new DoubleMatrixND(beta_uad));           				 // Popularity of the content units
+                op.setInputParameter("R",U*A);
 				//			op.setInputParameter("numOfDCs",numOfDCs);
 				//			op.setInputParameter("CAPACITYDC", capacityofDC);			// Popularity of the content units
 				//			DoubleMatrix1D alreadyHasADc = DoubleFactory1D.dense.make(N , 0.0); for (Node n : previousDCPositionsThisCDN) alreadyHasADc.set(n.getIndex() , 1);
@@ -103,20 +108,22 @@ public class ReplicaPlacement
 				op.addDecisionVariable("closest_uand", true, new int[]{U * A, N, numOfDCs}, 0, 1); // 1 if for cu u, the DC d is the closest to user in node n
 
 				/* Sets the objective function */
-				op.setObjectiveFunction("minimize", "sum (trafUserToDC_uand .* closest_uand .* cost_uand )"
-						+ " +   sum ((trafUserToDC_uad .* beta_uad)' * (sum(r_uad,2) - 1))   ");
+//				op.setObjectiveFunction("minimize", "sum (trafUserToDC_uand .* closest_uand .* cost_uand )"
+//						+ " +   sum (trafUserToDC_uad' * (sum(r_uad,2) - 1)) ");
+
+                op.setObjectiveFunction("minimize", "sum (trafUserToDC_uand .* closest_uand .* cost_uand )");
+//                op.setObjectiveFunction("minimize", "sum (trafUserToDC_uad' * (sum(r_uad,2) - 1))");
 
 				/* Constraints */
 				op.addConstraint("sum(closest_uand,3) == 1");
 				op.addConstraint("sum(r_uad,2) >= 2");
-				op.addConstraint("sum(r_uad,1) >= 10");
+				op.addConstraint("sum(r_uad,1) >= 0.1*R");
 
 				for (int n = 0; n < N; n++) {
 					op.setInputParameter("n", n);
 					op.addConstraint("sum(closest_uand(all,n,all),2) <= r_uad "); //
 				}
-				//			op.addConstraint("sum(r_ud) == R"); 					// we distribute all the replicas
-				//			op.addConstraint("sum(r_ud,1) <= CAPACITYDC"); 			// no DC is oversubscribed
+							op.addConstraint("sum(r_uad) == 2*R"); 					// we distribute all the replicas
 
 				/* Call the solver to solve the problem */
 				op.solve("cplex", "solverLibraryName", path, "maxSolverTimeInSeconds", solverTime);
@@ -128,18 +135,15 @@ public class ReplicaPlacement
 
 				/* Retrieve the optimum solutions */
 				DoubleMatrix2D r_uad = op.getPrimalSolution("r_uad").view2D();
-				//			DoubleMatrix1D e_d = op.getPrimalSolution("e_d").view1D();
-				System.out.println("-------------------");
-				System.out.println("  ");
-				String res = "";
-				for (int u = 0; u < U; u++)
-				{
-					res += "";
-					for (int d = 0; d < numOfDCs; d++)
-						res += r_uad.get(u, d) + " ";
-					System.out.println(res);
-					res = "";
-				}
+				System.out.println(" Optimal cost: "+ op.getOptimalCost());
+//				System.out.println("-------------------");
+//				System.out.println(r_uad);
+
+
+				System.out.println(r_uad.zMult(DoubleFactory1D.dense.make(numOfDCs,1.0),null));
+
+				System.out.println(r_uad.viewDice().zMult(DoubleFactory1D.dense.make(U*A,1.0),null));
+
 
 				//			for (int d = 0; d < oldNumOfDCs; d ++)
 				//				if (r_ud.viewColumn(d).zSum() > capacityofDC) throw new RuntimeException();
@@ -156,6 +160,8 @@ public class ReplicaPlacement
 				//			if (dcs.size() != numOfDCs) throw new RuntimeException();
 
 				//			if (!dcs.containsAll(previousDCPositionsThisCDN)) throw new RuntimeException();
+
+
 
 
 				if ((bestSolution == null) || (bestSolution.getThird() > currentSolutionCost)) {

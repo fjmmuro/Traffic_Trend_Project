@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.*;
 
 import com.google.common.collect.Sets;
+import com.jom.javaluator.Constant;
 import com.net2plan.interfaces.networkDesign.Demand;
 import com.net2plan.interfaces.networkDesign.IAlgorithm;
 import com.net2plan.interfaces.networkDesign.Link;
@@ -11,12 +12,8 @@ import com.net2plan.interfaces.networkDesign.NetPlan;
 import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.libraries.GraphUtils;
 import com.net2plan.libraries.TrafficMatrixGenerationModels;
+import com.net2plan.utils.*;
 import com.net2plan.utils.Constants.RoutingType;
-import com.net2plan.utils.DoubleUtils;
-import com.net2plan.utils.InputParameter;
-import com.net2plan.utils.Pair;
-import com.net2plan.utils.TimeTrace;
-import com.net2plan.utils.Triple;
 
 import cern.colt.matrix.tdouble.DoubleFactory1D;
 import cern.colt.matrix.tdouble.DoubleFactory2D;
@@ -93,15 +90,15 @@ public class TrafficTrendCDN implements IAlgorithm
 		double[] populationWeightVector = new double[N];
 	
 		final double CAGR_telcoTelco = 0.1;
-		netPlan.setRoutingType(RoutingType.SOURCE_ROUTING);	
-		
-		// Read services, applications and available CDNs
-		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U,rand);		
-		appAndCDNInfo.generateServicePerApp();
-		
+		netPlan.setRoutingType(RoutingType.SOURCE_ROUTING);
+
 		String path = "";
 		if (!isLocal.getBoolean())
 			path = "/opt/ibm/ILOG/CPLEX_Studio127/cplex/bin/x86-64_linux/libcplex1270.so";
+
+		// Read services, applications and available CDNs
+		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U,rand);		
+		appAndCDNInfo.generateServicePerApp();
 		
 		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
 		List<List<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(netPlan , C , rand);
@@ -162,7 +159,8 @@ public class TrafficTrendCDN implements IAlgorithm
 				for (Triple<Double,Integer, int[]> app : appInfo)
 				{
 					Collection cdnThisApp = new ArrayList<Integer>();
-					for(int cdn = 0; cdn < app.getThird().length; cdn++) cdnThisApp.add(app.getThird()[c]);
+					for(int cdn = 0; cdn < app.getThird().length; cdn++)
+						cdnThisApp.add(app.getThird()[cdn]);
 
 					if (cdnThisApp.contains(c))
 					{
@@ -173,10 +171,11 @@ public class TrafficTrendCDN implements IAlgorithm
 						final double appTraffic = H_D2C * proportionOfThisAppRespectToAll * Math.pow((1 + cagr_service), y);
 						final int[] indexesOfCDNsForThisApplication = app.getThird();                                                        // List of CDNs where the app can carry the traffic
 						final double h_ac = appTraffic / (double) indexesOfCDNsForThisApplication.length;                                        // Traffic per each CDN for the app
+						final int cdnInThisApp = IntUtils.find(indexesOfCDNsForThisApplication,c, Constants.SearchType.FIRST)[0];
 
-						for (int u = appIndex; u < appIndex * U; u++) {
+						for (int u = 0; u < U; u++) {
 							// D2C Traffic Matrices
-							final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(c).get(u);
+							final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(c).get(u+appIndex*U);
 							final int numDCsWithReplicasWithoutOrigin = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.size() - 1;
 							final DoubleMatrix1D traffCreatedPerNodeThisCDNAppUnit_n = DoubleFactory1D.dense.make(populationWeightVector);
 
@@ -185,14 +184,14 @@ public class TrafficTrendCDN implements IAlgorithm
 							final double normalizationFactor = h_ac * popularityThisContentUnit / sum_traffMatrixAppCDN;
 							final DoubleMatrix1D normalizedTrafficMatrixThisCDNAppUnit_n = traffCreatedPerNodeThisCDNAppUnit_n.assign(DoubleFunctions.mult(normalizationFactor));
 
-							traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[c]).assign(normalizedTrafficMatrixThisCDNAppUnit_n, DoubleFunctions.plus);
+							traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(indexesOfCDNsForThisApplication[cdnInThisApp]).assign(normalizedTrafficMatrixThisCDNAppUnit_n, DoubleFunctions.plus);
 
 							/* sum the diagonal: this is offered traffic does not appear as demands */
-
 							stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s[appService] += normalizedTrafficMatrixThisCDNAppUnit_n.zSum();
 
 							/* The traffic goes 80% to the closest replica, and 20% spread among all (including closest replica) */
-							for (Node userNode : netPlan.getNodes()) {
+							for (Node userNode : netPlan.getNodes())
+							{
 								Node closestReplicaNode = null;
 								int minNumHops = Integer.MAX_VALUE;
 								for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
@@ -238,9 +237,7 @@ public class TrafficTrendCDN implements IAlgorithm
 						}
 						appIndex++;
 					}
-
 				}
-
 			}
 					
 			for(int s=0; s<S; s++)			
