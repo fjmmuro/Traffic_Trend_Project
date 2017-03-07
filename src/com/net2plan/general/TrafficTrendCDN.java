@@ -216,8 +216,9 @@ public class TrafficTrendCDN implements IAlgorithm
 							}
 
 							// D2D Traffic Matrices (InterCDN Traffic)
-
-							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * h_ac * popularityThisContentUnit;
+							double x_unc = 0;
+							for (Node userNode : netPlan.getNodes()) x_unc += normalizedTrafficMatrixThisCDNAppUnit_n.get(userNode.getIndex());
+							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * x_unc;
 							final Set<Node> destinationNodes = new HashSet<>(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
 							final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
 							destinationNodes.remove(originNodeForMulticast);

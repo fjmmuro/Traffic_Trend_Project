@@ -43,12 +43,12 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
-	private double f = 1000.0;
+	private double f = 10.0;
 
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
-//	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
-	private double[] beta = {1.0/f,1.0/f,1.0/f,1.0/f,1.0/f};			// Beta values for each service
+	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
+//	private double[] beta = {1.0/f,1.0/f,1.0/f,1.0/f,1.0/f};			// Beta values for each service
 
 	public static double [] zipfDitribution = null;
 	
@@ -87,7 +87,7 @@ public class TrafficTrendUtils
 		final List<List<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			final int numNodes = 6;
+			final int numNodes = 3;
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));
@@ -118,8 +118,8 @@ public class TrafficTrendUtils
 			List<Integer> shuffleCDNs = new ArrayList<>(); for (int c = 0; c < C; c++) shuffleCDNs.add(c);
 			int appService = appServiceIndex.get(a);
 			int numberofAppsPerThisService = Collections.frequency(appServiceIndex, appService);
-//			int numCDNsForThisApplication = RandomUtils.random(1, 3);
-			int numCDNsForThisApplication = 1;
+			int numCDNsForThisApplication = RandomUtils.random(1, 3);
+//			int numCDNsForThisApplication = 1;
 			Collections.shuffle(shuffleCDNs);
 			int[] indexesOfCDNsOfThisApplication = new int[numCDNsForThisApplication];
 			double x_a = x_s[appService]/(double) numberofAppsPerThisService;
