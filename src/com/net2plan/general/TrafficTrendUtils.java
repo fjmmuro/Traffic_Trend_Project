@@ -43,7 +43,7 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
-	private double f = 10.0;
+	private double f = 1.5;
 
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
@@ -115,18 +115,25 @@ public class TrafficTrendUtils
 
 		for(int a = 0; a < A; a++)		
 		{
-			List<Integer> shuffleCDNs = new ArrayList<>(); for (int c = 0; c < C; c++) shuffleCDNs.add(c);
+			List<Integer> shuffleCDNs = new ArrayList<>();
+			for (int c = 0; c < C; c++)
+				shuffleCDNs.add(c);
+			if (a >= C)
+				Collections.shuffle(shuffleCDNs);
+
 			int appService = appServiceIndex.get(a);
 			int numberofAppsPerThisService = Collections.frequency(appServiceIndex, appService);
 			int numCDNsForThisApplication = RandomUtils.random(1, 3);
 //			int numCDNsForThisApplication = 1;
-			Collections.shuffle(shuffleCDNs);
 			int[] indexesOfCDNsOfThisApplication = new int[numCDNsForThisApplication];
 			double x_a = x_s[appService]/(double) numberofAppsPerThisService;
 
 			for (int c = 0; c < numCDNsForThisApplication; c++)
-				if (c==0)
+				if ( (c==0) && (a < C) ) {
 					indexesOfCDNsOfThisApplication[c] = a;
+					shuffleCDNs.remove(a);
+					Collections.shuffle(shuffleCDNs);
+				}
 				else
 					indexesOfCDNsOfThisApplication[c] = shuffleCDNs.get(c);
 
@@ -186,38 +193,13 @@ public class TrafficTrendUtils
 		
 		final int numberOfNewDCsToCreate = (int) (G*(currentCDNTraffic-intialCDNsTraffic)/intialCDNsTraffic);			
 		final int N = netPlan.getNumberOfNodes();
-				
-		if(numberOfNewDCsToCreate >= 1 && currentDCsInCDN.size() + numberOfNewDCsToCreate <= N)
+
+		if( (numberOfNewDCsToCreate >= 1) && (currentDCsInCDN.size() + numberOfNewDCsToCreate <= N) )
 		{
-//			for (int n1 = 0; n1 < numberOfNewDCsToCreate; n1++)
-//			{
-//				/* Selection of the placement for the new DC */
-//				final Set<Node> placementCandidates = Sets.difference(new HashSet<>(netPlan.getNodes()) , new HashSet<>(currentDCsInCDN));
-//				Node chosenNode = null;
-//				if (rand.nextDouble() < 0.8)
-//				{
-//					/* Take the best option */
-//					double bestTraffic = -Double.MAX_VALUE;
-//					for (Node candidate : placementCandidates)
-//					{
-//						final double nodeTraffic = trafficToTheCDNFromEachNode_n.get(candidate.getIndex());
-//						if (nodeTraffic > bestTraffic)
-//						{
-//							bestTraffic = nodeTraffic;
-//							chosenNode = candidate;
-//						}
-//					}
-//				}
-//				else
-//					chosenNode = new ArrayList<Node> (placementCandidates).get(rand.nextInt(placementCandidates.size()));
-//
-//				if(chosenNode == null) throw new RuntimeException("Chosen Node = null");
-//				this.cdnNodes_c.get(c).add(chosenNode);
-//			}
 			this.trafficInPreivousYearWhenADCWasCreated[c] = currentCDNTraffic;
 			this.isModifiedCDN[c] = true;
 		}		
-		final int numberOfNewDCs = this.cdnNodes_c.get(c).size() - originalDCsInCDN.size() ;
+		final int numberOfNewDCs = numberOfNewDCsToCreate ;
 		
 		return  numberOfNewDCs;
 	}
@@ -271,18 +253,17 @@ public class TrafficTrendUtils
 
 			if( (lastYearReplicaPlacements.isEmpty()) || (this.isModifiedCDN[c]) )
 			{
-				List<Node> cdnDCsThisYear = this.cdnNodes_c.get(c);
+                List<Node> cdnDCsThisYear = this.cdnNodes_c.get(c);
 				List<List<Node>> replicaPlacementsThisCDN = new ArrayList<>();
 				final int cdnNumDCs = cdnDCsThisYear.size();
 				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 
 	//					double iniTime = (double) System.nanoTime()*1e-9;
-				Pair<DoubleMatrix2D,List<Node>> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
+				Triple<DoubleMatrix2D,Node,Integer> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
 				DoubleMatrix2D replicasPlacementsInThisCDN = dcsAndReplicaPlacement.getFirst();
-				if(!isFirstTime) this.cdnNodes_c.get(c).add(dcsAndReplicaPlacement.getSecond().get(cdnNumDCs));
-	//					double endTIme = (double) System.nanoTime()*1e-9;
-	//					double ilpTime = endTIme-iniTime;
-	//					System.out.println("ILP Run time: " + ilpTime);
+                if(!isFirstTime) this.cdnNodes_c.get(c).add(dcsAndReplicaPlacement.getSecond());
+				int dcToRemove = dcsAndReplicaPlacement.getThird();
+				if(dcToRemove != -1) this.cdnNodes_c.get(c).remove(dcToRemove);
 
 				for(int u = 0; u < U; u++)
 					for(int app = 0; app < h_a.size(); app++)

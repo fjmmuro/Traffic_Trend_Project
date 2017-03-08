@@ -41,14 +41,15 @@ public class ReplicaPlacement
 	 * @param path
 	 * @return
 	 */
-	public static Pair<DoubleMatrix2D,List<Node>> placeReplicas (NetPlan netPlan, List<Node> previousDCPositionsThisCDN , 
+	public static Triple<DoubleMatrix2D,Node,Integer> placeReplicas (NetPlan netPlan, List<Node> previousDCPositionsThisCDN ,
 			DoubleMatrix2D cost_n1n2, double [] popularity_u, double [] population_n , 
 			DoubleMatrix1D h_a , DoubleMatrix1D beta_a , 
 			String path, boolean isFirstTime)
 	{
-		Triple<DoubleMatrix2D , List<Node> , Double> bestSolution = null; // r_ud, dcPositions , objectiveCost
+		Triple<DoubleMatrix2D , Node , Double> bestSolution = null; // r_ud, dcPositions , objectiveCost
 		final Set<Node> potentialNewDcPositions = Sets.difference(new HashSet<> (netPlan.getNodes()), new HashSet<> (previousDCPositionsThisCDN));
 		double currentSolutionCost = Double.MIN_VALUE;
+		int dcEmpty = -1;
 
 		for (Node newDCNode : potentialNewDcPositions)
 		{
@@ -132,28 +133,30 @@ public class ReplicaPlacement
 
 			/* Retrieve the optimum solutions */
 			DoubleMatrix2D r_uad = op.getPrimalSolution("r_uad").view2D();
-			System.out.println(" Optimal cost: "+ op.getOptimalCost());
+			currentSolutionCost = op.getOptimalCost();
+//			System.out.println(" Optimal cost: "+ op.getOptimalCost());
 //				System.out.println("-------------------");
 //				System.out.println(r_uad);
 
-			System.out.println(r_uad.zMult(DoubleFactory1D.dense.make(numOfDCs,1.0),null));
-			System.out.println(r_uad.viewDice().zMult(DoubleFactory1D.dense.make(U*A,1.0),null));
+//			System.out.println(r_uad.zMult(DoubleFactory1D.dense.make(numOfDCs,1.0),null));
+//			System.out.println(r_uad.viewDice().zMult(DoubleFactory1D.dense.make(U*A,1.0),null));
 
 			//			for (int d = 0; d < oldNumOfDCs; d ++)
 			//				if (r_ud.viewColumn(d).zSum() > capacityofDC) throw new RuntimeException();
 			for (int u = 0; u < U; u++)
 				if (r_uad.viewRow(u).zSum() < 2) throw new RuntimeException("At least one content unit has not two replicas");
 			//			if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
+
 			for (int d = 0; d < numOfDCs; d++)
-				if ((r_uad.viewColumn(d).zSum() == 0)) throw new RuntimeException("At least one DC is empty");
+				if ((r_uad.viewColumn(d).zSum() == 0)) dcEmpty = d;
 
 			if ((bestSolution == null) || (bestSolution.getThird() > currentSolutionCost)) {
-				bestSolution = Triple.of(r_uad, dcPositions, currentSolutionCost);
+				bestSolution = Triple.of(r_uad, newDCNode, currentSolutionCost);
 			}
 			if (isFirstTime) break;
 		}
 		
-		return Pair.of(bestSolution.getFirst(), bestSolution.getSecond());
+		return Triple.of(bestSolution.getFirst(), bestSolution.getSecond(),dcEmpty);
 	}
 	
 	

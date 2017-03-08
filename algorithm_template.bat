@@ -7,7 +7,7 @@ java -jar Net2Plan-cli.jar --mode net-design ^
 --class-file C:\Users\javie\Documents\Git\Traffic_Trend_Project\out\production\Traffic_Trend_Project\com\net2plan\general\testAlgorithm.class ^
 --class-name testAlgorithm ^
 --output-file C:\Users\javie\OneDrive\Projects\output.n2p ^
---alg-param A=5 ^
+--alg-param A=20 ^
 --alg-param U=100 ^
 --alg-param G=0 ^
 --alg-param rngSeed=0 ^
