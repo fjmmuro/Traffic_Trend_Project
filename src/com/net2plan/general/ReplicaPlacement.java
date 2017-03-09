@@ -41,15 +41,19 @@ public class ReplicaPlacement
 	 * @param path
 	 * @return
 	 */
-	public static Triple<DoubleMatrix2D,Node,Integer> placeReplicas (NetPlan netPlan, List<Node> previousDCPositionsThisCDN ,
+	public static Pair<DoubleMatrix2D,List<Node>> placeReplicas (NetPlan netPlan, List<Node> previousDCPositionsThisCDN ,
 			DoubleMatrix2D cost_n1n2, double [] popularity_u, double [] population_n , 
 			DoubleMatrix1D h_a , DoubleMatrix1D beta_a , 
 			String path, boolean isFirstTime)
 	{
-		Triple<DoubleMatrix2D , Node , Double> bestSolution = null; // r_ud, dcPositions , objectiveCost
+		Triple<DoubleMatrix2D , List<Node> , Double> bestSolution = null; // r_ud, dcPositions , objectiveCost
 		final Set<Node> potentialNewDcPositions = Sets.difference(new HashSet<> (netPlan.getNodes()), new HashSet<> (previousDCPositionsThisCDN));
 		double currentSolutionCost = Double.MIN_VALUE;
 		int dcEmpty = -1;
+
+		final int N = netPlan.getNumberOfNodes();
+		final int A = (int) h_a.size();
+		final int U = popularity_u.length;
 
 		for (Node newDCNode : potentialNewDcPositions)
 		{
@@ -58,18 +62,12 @@ public class ReplicaPlacement
 
 			/* Create the optimization problem object (JOM library) */
 			OptimizationProblem op = new OptimizationProblem();
-			final int U = popularity_u.length;
 			final int numOfDCs = dcPositions.size();
-			final int N = netPlan.getNumberOfNodes();
-			final int A = (int) h_a.size();
 
 //			final int capacityofDC = (int) Math.ceil(totalNumberOfReplicasToDistribute / (double) oldNumOfDCs);
 			int solverTime = 60;
 			if (N > 20)
 				solverTime = 150;
-
-//				System.out.println("----- Popularity-----------");
-//				System.out.println(Arrays.toString(popularity_u));
 
 			/* Set some input parameters */
 			double[][][] cost_uand = new double[U * A][N][numOfDCs];
@@ -84,7 +82,6 @@ public class ReplicaPlacement
 						for (int d = 0; d < numOfDCs; d++)
 						{
 							trafUserToDC_uand[u + a * U][n][d] = popularity_u[u] * population_n[n] * h_a.get(a) / DoubleUtils.sum(population_n);
-//								beta_uad[u + a * U][d] = beta_a.get(a);
 							cost_uand[u + a * U][n][d] = cost_n1n2.get(n, dcPositions.get(d).getIndex());
 							trafUserToDC_uad[u + a * U] = popularity_u[u] * h_a.get(a) * beta_a.get(a);
 //                                trafUserToDC_uad[u + a * U][d] = popularity_u[u] * population_n[n] * h_a.get(a);
@@ -95,7 +92,7 @@ public class ReplicaPlacement
 			op.setInputParameter("trafUserToDC_uad", trafUserToDC_uad, "row");            // Popularity of the content units
 //				op.setInputParameter("D",numOfDCs);
 //				op.setInputParameter("beta_uad", new DoubleMatrixND(beta_uad));           				 // Popularity of the content units
-			op.setInputParameter("R",U*A);
+//			op.setInputParameter("R",U*A);
 			//			op.setInputParameter("numOfDCs",numOfDCs);
 			//			op.setInputParameter("CAPACITYDC", capacityofDC);			// Popularity of the content units
 			//			DoubleMatrix1D alreadyHasADc = DoubleFactory1D.dense.make(N , 0.0); for (Node n : previousDCPositionsThisCDN) alreadyHasADc.set(n.getIndex() , 1);
@@ -145,18 +142,16 @@ public class ReplicaPlacement
 			//				if (r_ud.viewColumn(d).zSum() > capacityofDC) throw new RuntimeException();
 			for (int u = 0; u < U; u++)
 				if (r_uad.viewRow(u).zSum() < 2) throw new RuntimeException("At least one content unit has not two replicas");
-			//			if (r_ud.zSum() != totalNumberOfReplicasToDistribute) throw new RuntimeException();
 
-			for (int d = 0; d < numOfDCs; d++)
-				if ((r_uad.viewColumn(d).zSum() == 0)) dcEmpty = d;
+			if ((bestSolution == null) || (bestSolution.getThird() > currentSolutionCost))
+				bestSolution = Triple.of(r_uad, dcPositions, currentSolutionCost);
 
-			if ((bestSolution == null) || (bestSolution.getThird() > currentSolutionCost)) {
-				bestSolution = Triple.of(r_uad, newDCNode, currentSolutionCost);
-			}
 			if (isFirstTime) break;
 		}
-		
-		return Triple.of(bestSolution.getFirst(), bestSolution.getSecond(),dcEmpty);
+
+//		System.out.println(bestSolution.getFirst().viewDice().zMult(DoubleFactory1D.dense.make(U*A,1.0),null));
+
+		return Pair.of(bestSolution.getFirst(), bestSolution.getSecond());
 	}
 	
 	

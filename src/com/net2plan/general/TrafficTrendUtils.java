@@ -43,7 +43,7 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
-	private double f = 1.5;
+	private double f = 2.0;
 
 	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
 	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
@@ -225,7 +225,10 @@ public class TrafficTrendUtils
 	
 	public List<List<List<Node>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path, boolean isFirstTime)
 	{
-		
+
+//		for(List<Node> cdn : cdnNodes_c)
+//			System.out.println("Number of DCs this CDN: " + cdn.size());
+
 		List<List<List<Node>>> replicaPlacementsAllCDNs = new ArrayList<>();
 
 		for(int c = 0; c < C; c++)
@@ -256,25 +259,37 @@ public class TrafficTrendUtils
                 List<Node> cdnDCsThisYear = this.cdnNodes_c.get(c);
 				List<List<Node>> replicaPlacementsThisCDN = new ArrayList<>();
 				final int cdnNumDCs = cdnDCsThisYear.size();
-				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
+//				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 
-	//					double iniTime = (double) System.nanoTime()*1e-9;
-				Triple<DoubleMatrix2D,Node,Integer> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
+				Pair<DoubleMatrix2D,List<Node>> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
 				DoubleMatrix2D replicasPlacementsInThisCDN = dcsAndReplicaPlacement.getFirst();
-                if(!isFirstTime) this.cdnNodes_c.get(c).add(dcsAndReplicaPlacement.getSecond());
-				int dcToRemove = dcsAndReplicaPlacement.getThird();
-				if(dcToRemove != -1) this.cdnNodes_c.get(c).remove(dcToRemove);
+				List<Node> dcsThisCDNfromILP = dcsAndReplicaPlacement.getSecond();
 
 				for(int u = 0; u < U; u++)
 					for(int app = 0; app < h_a.size(); app++)
 					{
 						List<Node> dcsThisCU = new ArrayList<>();
-						for (int d = 0; d < cdnNumDCs; d++)
+						for (int d = 0; d < dcsThisCDNfromILP.size(); d++)
 							if (replicasPlacementsInThisCDN.get(u+app*U, d) == 1)
-								dcsThisCU.add(cdnDCsThisYear.get(d));
+								dcsThisCU.add(dcsThisCDNfromILP.get(d));
+
 						replicaPlacementsThisCDN.add(dcsThisCU);
 					}
 				replicaPlacementsAllCDNs.add(replicaPlacementsThisCDN);
+
+				for (int d = 0; d < dcsThisCDNfromILP.size(); d++) {
+					if (replicasPlacementsInThisCDN.viewColumn(d).zSum() == 0)
+					{
+//						System.out.println("DC to remove:" + dcsThisCDNfromILP.get(d));
+						dcsThisCDNfromILP.remove(d);
+					}
+				}
+//				System.out.println(replicasPlacementsInThisCDN.viewDice().zMult(DoubleFactory1D.dense.make(U*numAppThisCDN,1.0),null));
+
+				this.cdnNodes_c.get(c).clear();
+				for (Node d : dcsThisCDNfromILP)
+					this.cdnNodes_c.get(c).add(d);
+
 			}
 			else
 				replicaPlacementsAllCDNs.add(lastYearReplicaPlacements.get(c));

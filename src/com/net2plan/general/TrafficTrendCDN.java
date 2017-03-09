@@ -138,6 +138,7 @@ public class TrafficTrendCDN implements IAlgorithm
 
 		for (int y = 0; y < simYears; y++)
 		{
+
 			double[] stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s = new double[S];
 			double[] stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s = new double[S];
 			double[] stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s = new double[S];
@@ -149,8 +150,7 @@ public class TrafficTrendCDN implements IAlgorithm
 
 			// Compute traffic per application
 			List<DoubleMatrix1D> traffMatrixThisYearIncludingSelfDemandsPerCDN_c = new ArrayList<>();
-			for (int c = 0; c < C; c++)
-				traffMatrixThisYearIncludingSelfDemandsPerCDN_c.add(c, DoubleFactory1D.dense.make(N));
+			for (int c = 0; c < C; c++)	traffMatrixThisYearIncludingSelfDemandsPerCDN_c.add(c, DoubleFactory1D.dense.make(N));
 
 			for (int c=0; c < C; c ++)
 			{
@@ -172,7 +172,6 @@ public class TrafficTrendCDN implements IAlgorithm
 						final double h_ac = appTraffic / (double) indexesOfCDNsForThisApplication.length;                                        // Traffic per each CDN for the app
 						final int cdnInThisApp = IntUtils.find(indexesOfCDNsForThisApplication,c, Constants.SearchType.FIRST)[0];
 
-
 						for (int u = 0; u < U; u++) {
 							// D2C Traffic Matrices
 							final List<Node> nodesWithDCWithAReplicaOfThisContentUnitInThisCDN = replicaPlacements.get(c).get(u+appIndex*U);
@@ -188,7 +187,7 @@ public class TrafficTrendCDN implements IAlgorithm
 
 							/* sum the diagonal: this is offered traffic does not appear as demands */
 							stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s[appService] += normalizedTrafficMatrixThisCDNAppUnit_n.zSum();
-
+							double[] user2DCBwPerNode = new double[N];
 							/* The traffic goes 80% to the closest replica, and 20% spread among all (including closest replica) */
 							for (Node userNode : netPlan.getNodes())
 							{
@@ -203,7 +202,8 @@ public class TrafficTrendCDN implements IAlgorithm
 								final double trafficUserToDC = normalizedTrafficMatrixThisCDNAppUnit_n.get(userNode.getIndex());
 
 								/* 80% of traffic goes to closest replica */
-								stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * numHops_n1n2.get(userNode.getIndex(), closestReplicaNode.getIndex());
+								user2DCBwPerNode[userNode.getIndex()] = trafficUserToDC * numHops_n1n2.get(userNode.getIndex(), closestReplicaNode.getIndex());
+								stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * user2DCBwPerNode[userNode.getIndex()] ;
 								propagationTimeMultipliedByGbpsPerServiceThisYear_s[appService] += portionDCClosestInUserTraffic * trafficUserToDC * rtt_n1n2.get(userNode.getIndex(), closestReplicaNode.getIndex());
 
 								/* 20% of traffic is spread randomly among all the DCs in the CDN */
@@ -215,21 +215,21 @@ public class TrafficTrendCDN implements IAlgorithm
 								}
 							}
 
-							// D2D Traffic Matrices (InterCDN Traffic)
-							double x_unc = 0;
-							for (Node userNode : netPlan.getNodes())
-							{
-								Node closestReplicaNode = null;
-								int minNumHops = Integer.MAX_VALUE;
-								for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
-									if (numHops_n1n2.get(userNode.getIndex(), n.getIndex()) < minNumHops) {
-										closestReplicaNode = n;
-										minNumHops = (int) numHops_n1n2.get(userNode.getIndex(), n.getIndex());
-									}
-									if(minNumHops != 0)	x_unc+= normalizedTrafficMatrixThisCDNAppUnit_n.get(userNode.getIndex())/(double) numHops_n1n2.get(userNode.getIndex(),closestReplicaNode.getIndex());
-							}
+//							// D2D Traffic Matrices (InterCDN Traffic)
+//							double x_unc = 0;
+//							for (Node userNode : netPlan.getNodes())
+//							{
+//								Node closestReplicaNode = null;
+//								int minNumHops = Integer.MAX_VALUE;
+//								for (Node n : nodesWithDCWithAReplicaOfThisContentUnitInThisCDN)
+//									if (numHops_n1n2.get(userNode.getIndex(), n.getIndex()) < minNumHops) {
+//										closestReplicaNode = n;
+//										minNumHops = (int) numHops_n1n2.get(userNode.getIndex(), n.getIndex());
+//									}
+//									if(minNumHops != 0)	x_unc += user2DCBwPerNode[userNode.getIndex()]/(double) numHops_n1n2.get(userNode.getIndex(),closestReplicaNode.getIndex());
+//							}
 
-							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * x_unc;
+							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * normalizationFactor;
 							final Set<Node> destinationNodes = new HashSet<>(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
 							final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
 							destinationNodes.remove(originNodeForMulticast);
@@ -241,7 +241,6 @@ public class TrafficTrendCDN implements IAlgorithm
 									multLinks = GraphUtils.getMinimumCostMulticastTree(netPlan.getLinks(), netPlan.getMatrixNodeLinkOutgoingIncidence(), netPlan.getMatrixNodeLinkIncomingIncidence(),
 											linkCost, originNodeForMulticast, destinationNodes, -1, -1, -1, -1, "cplex", path, 10);
 									cplMulticast.put(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN, multLinks);
-									//								System.out.println("CU: " + u + " Destination Nodes size: " + destinationNodes.size());
 								}
 								stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit;
 								stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s[appService] += replicaOfferedTrafficSummingAllNodesThisCDNAppUnit * multLinks.size();
@@ -291,8 +290,10 @@ public class TrafficTrendCDN implements IAlgorithm
 				System.out.println("* DC to DC traffic: " );
 				System.out.println("  - Offered: " +  DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s));
 				System.out.println("  - In links: " +  DoubleUtils.sum(stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s));
+				System.out.println("* Propagation Time : " + DoubleUtils.sum(propagationTimeMultipliedByGbpsPerServiceThisYear_s));
 				System.out.println("* RTT : " + DoubleUtils.sum(propagationTimeMultipliedByGbpsPerServiceThisYear_s)/(double)S);
-				System.out.println("* Num New DCs: " + newDCs);
+				System.out.println("* Num new DCs to create: " + newDCs);
+				System.out.println(" Ratio BW/offered in U-DC : " + DoubleUtils.sum(stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s)/ DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s));
 			}			
 		}
 					
