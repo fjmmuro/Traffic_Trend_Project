@@ -43,11 +43,11 @@ public class TrafficTrendUtils
 	
 	private int C,S,A,U;
 
-	private double f = 2.0;
+	final private double f = 2.0;
 
-	private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
-	private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
-	private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
+	final private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
+	final private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
+	final private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
 //	private double[] beta = {1.0/f,1.0/f,1.0/f,1.0/f,1.0/f};			// Beta values for each service
 
 	public static double [] zipfDitribution = null;
@@ -223,13 +223,15 @@ public class TrafficTrendUtils
 			zipfDitribution [i] = x_u[i]/total;	
 	}
 	
-	public List<List<List<Node>>> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path, boolean isFirstTime)
+	public Pair<List<List<List<Node>>>,Integer> computeReplicaPlacementsForAllCDNs (NetPlan np , double averageNumberOfReplicasPerCU , DoubleMatrix2D cost_n1n2 , double [] population_n, String path, boolean isFirstTime)
 	{
 
 //		for(List<Node> cdn : cdnNodes_c)
 //			System.out.println("Number of DCs this CDN: " + cdn.size());
 
 		List<List<List<Node>>> replicaPlacementsAllCDNs = new ArrayList<>();
+		final int initialNumOfDCs = cdnNodes_c.size();
+		int finalNumOfDCs = 0;
 
 		for(int c = 0; c < C; c++)
 		{
@@ -258,7 +260,6 @@ public class TrafficTrendUtils
 			{
                 List<Node> cdnDCsThisYear = this.cdnNodes_c.get(c);
 				List<List<Node>> replicaPlacementsThisCDN = new ArrayList<>();
-				final int cdnNumDCs = cdnDCsThisYear.size();
 //				final int maximumNumberReplicasInEachDCEachApp = (int) Math.ceil(averageNumberOfReplicasPerCU * U) ;
 
 				Pair<DoubleMatrix2D,List<Node>> dcsAndReplicaPlacement = ReplicaPlacement.placeReplicas(np, cdnDCsThisYear, cost_n1n2, zipfDitribution,population_n , h_a, beta_a ,path, isFirstTime);
@@ -285,6 +286,7 @@ public class TrafficTrendUtils
 					}
 				}
 //				System.out.println(replicasPlacementsInThisCDN.viewDice().zMult(DoubleFactory1D.dense.make(U*numAppThisCDN,1.0),null));
+				finalNumOfDCs += dcsThisCDNfromILP.size();
 
 				this.cdnNodes_c.get(c).clear();
 				for (Node d : dcsThisCDNfromILP)
@@ -299,7 +301,7 @@ public class TrafficTrendUtils
 			this.isModifiedCDN[c] = false;
 		this.lastYearReplicaPlacements = replicaPlacementsAllCDNs;
 		
-		return replicaPlacementsAllCDNs;
+		return Pair.of(replicaPlacementsAllCDNs,this.cdnNodes_c.stream().mapToInt(e->e.size()).sum());
 	}
 
 

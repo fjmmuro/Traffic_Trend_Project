@@ -100,13 +100,14 @@ public class TrafficTrendCDN implements IAlgorithm
 		TrafficTrendUtils appAndCDNInfo = new TrafficTrendUtils(C,S,A,U,rand);		
 		appAndCDNInfo.generateServicePerApp();
 		
-		List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
-		List<List<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(netPlan , C , rand);
-		List<Triple<Double,Double,Double>> servicesInfo = appAndCDNInfo.getServices();
+		final List<Triple<Double, Integer, int[]>> appInfo = appAndCDNInfo.getApps();
+		final List<List<Node>> nodesWithDCPerCDN_c = appAndCDNInfo.getInitialDCPlacementPerCDN(netPlan , C , rand);
+		final List<Triple<Double,Double,Double>> servicesInfo = appAndCDNInfo.getServices();
 
 		final int iniNumberDCsSummingAllCDNsYear0 = nodesWithDCPerCDN_c.stream().mapToInt(e->e.size()).sum();
 			
-		stat_numberOfNewDCCreatedEachYear.add(0,(double)iniNumberDCsSummingAllCDNsYear0);
+		stat_numberOfNewDCCreatedEachYear.add(0,iniNumberDCsSummingAllCDNsYear0);
+		int lastNumofDCs = iniNumberDCsSummingAllCDNsYear0;
 		
 		final DoubleMatrix1D populationPerNode = NetPlan.getAttributeValues(netPlan.getNodes() , "population" , 0);
 		final double totalPopulation = populationPerNode.zSum();
@@ -132,12 +133,14 @@ public class TrafficTrendCDN implements IAlgorithm
 		if (!ilpMode.getString().equalsIgnoreCase("rttAware"))
 			ilpCostn1n2 = numHops_n1n2.copy();
 
-		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path,true);
+		Pair<List<List<List<Node>>>,Integer> replicasPlacementsAndNewDCs = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path,true);
+		List<List<List<Node>>> replicaPlacements = replicasPlacementsAndNewDCs.getFirst();
 
 		final Pair<Double,Double> totalTrafficSummingTelcoTelcoYearZero = computeTelcoTelcoTotalTrafficInTheLinksYearZero (netPlan , populationWeightVector , H_TelcoTelco , CAGR_telcoTelco , numHops_n1n2);
 
 		for (int y = 0; y < simYears; y++)
 		{
+			double sumBeta = 0;
 
 			double[] stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s = new double[S];
 			double[] stat_sumTotalTrafficInLinksSummingD2DPerServiceThisYear_s = new double[S];
@@ -229,7 +232,8 @@ public class TrafficTrendCDN implements IAlgorithm
 //									if(minNumHops != 0)	x_unc += user2DCBwPerNode[userNode.getIndex()]/(double) numHops_n1n2.get(userNode.getIndex(),closestReplicaNode.getIndex());
 //							}
 
-							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * normalizationFactor;
+							final double replicaOfferedTrafficSummingAllNodesThisCDNAppUnit = beta_s * h_ac * popularityThisContentUnit ;
+//							sumBeta += beta_s;
 							final Set<Node> destinationNodes = new HashSet<>(nodesWithDCWithAReplicaOfThisContentUnitInThisCDN);
 							final Node originNodeForMulticast = nodesWithDCWithAReplicaOfThisContentUnitInThisCDN.iterator().next();
 							destinationNodes.remove(originNodeForMulticast);
@@ -262,19 +266,18 @@ public class TrafficTrendCDN implements IAlgorithm
 
 			// If new DC are created, a new distribution of the replicas is needed
 			int newDCs = 0;
-			int previousTotalDCs = 0;
-			for(int c = 0; c < C; c++) {
+			for(int c = 0; c < C; c++)
 				newDCs += appAndCDNInfo.addDcIntoCDN(netPlan, c, G.getDouble(), traffMatrixThisYearIncludingSelfDemandsPerCDN_c.get(c));
-				previousTotalDCs += replicaPlacements.get(c).size();
+
+			Pair<List<List<List<Node>>>,Integer> newReplicasPlacementsAndNewDCs = null;
+			if(newDCs > 0) {
+				newReplicasPlacementsAndNewDCs = appAndCDNInfo.computeReplicaPlacementsForAllCDNs(netPlan, avNumReplicasPerContentUnit.getDouble(), numHops_n1n2, populationWeightVector, path, false);
+				replicaPlacements = newReplicasPlacementsAndNewDCs.getFirst();
+				stat_numberOfNewDCCreatedEachYear.add(y+1,newReplicasPlacementsAndNewDCs.getSecond());
+				lastNumofDCs = newReplicasPlacementsAndNewDCs.getSecond();
 			}
-
-			if(newDCs > 0)
-				replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path,false);
-
-			int currentTotalDCs = 0;
-			for(int c = 0; c < C; c++) currentTotalDCs += replicaPlacements.get(c).size();
-
-			stat_numberOfNewDCCreatedEachYear.add(y+1,currentTotalDCs-previousTotalDCs);
+			else
+				stat_numberOfNewDCCreatedEachYear.add(y+1,lastNumofDCs);
 
 			if(debugMode.getBoolean())
 			{
@@ -294,7 +297,9 @@ public class TrafficTrendCDN implements IAlgorithm
 				System.out.println("* RTT : " + DoubleUtils.sum(propagationTimeMultipliedByGbpsPerServiceThisYear_s)/(double)S);
 				System.out.println("* Num new DCs to create: " + newDCs);
 				System.out.println(" Ratio BW/offered in U-DC : " + DoubleUtils.sum(stat_sumTotalTrafficInLinksSummingOnlyDCToUserPerServiceThisYear_s)/ DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s));
-			}			
+				System.out.println(" Ratio Offered traffic multicast/u-DC :" + DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingD2DPerServiceThisYear_s)/DoubleUtils.sum(stat_sumTotalOfferedTrafficSummingOnlyDCToUserPerServiceThisYear_s));
+//				System.out.println(" Sum beta : " + sumBeta);
+			}
 		}
 					
 		String root;

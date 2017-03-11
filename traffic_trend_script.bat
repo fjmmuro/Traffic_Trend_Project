@@ -16,6 +16,6 @@ for %%g in (0 1 2) do (
 		--alg-param simYears=15 ^
 		--alg-param isLocal=true ^
 		--alg-param portionDCClosestInUserTraffic=1.0 ^
-		--alg-param ilpMode=rttAware
+		--alg-param ilpMode=hopsAware
 	)
 )

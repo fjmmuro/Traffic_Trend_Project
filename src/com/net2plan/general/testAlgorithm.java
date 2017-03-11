@@ -135,7 +135,7 @@ public class testAlgorithm implements IAlgorithm
 			rtt_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , rtt);
 			numHops_n1n2.set(n1n2.getFirst().getIndex() , n1n2.getSecond().getIndex() , seqLinks.size());
 		}
-		List<List<List<Node>>> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path, true);
+		Pair<List<List<List<Node>>>,Integer> replicaPlacements = appAndCDNInfo.computeReplicaPlacementsForAllCDNs (netPlan , avNumReplicasPerContentUnit.getDouble() , numHops_n1n2 , populationWeightVector, path, true);
 
 //		int app = 0;
 //		for(List<List<Node>> replicasThisCDN : replicaPlacements)
