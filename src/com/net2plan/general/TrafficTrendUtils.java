@@ -40,13 +40,12 @@ import cern.colt.matrix.tdouble.DoubleMatrix2D;
 
 public class TrafficTrendUtils 
 {
-	
 	private int C,S,A,U;
 
 	final private double f = 2.0;
 
-	final private double[] x_s = {0.47,0.25,0.19,0.08,0.01}; 		// Total traffic proportion for each service
-	final private double[] cagr = {0.31,0.31,0.18,0,0.47};  		// Cagr for each service regarding cisco vni
+	final private double[] x_s = {0.465,0.252,0.154,0.113,0.013}; 		// Total traffic proportion for each service
+	final private double[] cagr = {0.31,0.31,0.17,0,0.62};  		// Cagr for each service regarding cisco vni
 	final private double[] beta = {0.1/f,0.5/f,1.0/f,0.9/f,0.1/f};			// Beta values for each service
 //	private double[] beta = {1.0/f,1.0/f,1.0/f,1.0/f,1.0/f};			// Beta values for each service
 
@@ -87,7 +86,7 @@ public class TrafficTrendUtils
 		final List<List<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			final int numNodes = 3;
+			final int numNodes = 2;
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));

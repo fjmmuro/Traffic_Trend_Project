@@ -89,7 +89,7 @@ public class TrafficTrendCDN implements IAlgorithm
 
 		double[] populationWeightVector = new double[N];
 	
-		final double CAGR_telcoTelco = 0.1;
+		final double CAGR_telcoTelco = 0.13;
 		netPlan.setRoutingType(RoutingType.SOURCE_ROUTING);
 
 		String path = "";
@@ -304,7 +304,7 @@ public class TrafficTrendCDN implements IAlgorithm
 					
 		String root;
 		if (isLocal.getBoolean()) root = "C:/Users/javie/OneDrive/Projects/Proyecto Trend CDN/Results/Results/";
-		else root = "../trendTraffic/Results/";
+		else root = "../trendTraffic/Results/"+netPlan.getNetworkName()+"/";
 		
 		String gString = Double.toString(G.getDouble());
 		String simString = Integer.toString(sim.getInt());
