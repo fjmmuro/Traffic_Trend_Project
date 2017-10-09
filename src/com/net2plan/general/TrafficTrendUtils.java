@@ -86,7 +86,7 @@ public class TrafficTrendUtils
 		final List<List<Node>> res  = new ArrayList<> ();
 		for(int c = 0; c < C; c++)
 		{
-			final int numNodes = 2;
+			final int numNodes = 3;
 			final List<Node> shuffledNodes = new ArrayList<> (np.getNodes());
 			Collections.shuffle(shuffledNodes , rand);
 			res.add(new ArrayList<> (shuffledNodes.subList(0 , numNodes)));
